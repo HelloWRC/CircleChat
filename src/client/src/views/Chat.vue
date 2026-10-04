@@ -1,20 +1,22 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { NAvatar, NButton, NIcon, useMessage } from 'naive-ui'
 import { SendOutline } from '@vicons/ionicons5'
-import { useChatClient, type ChatClientSubscription } from '@/api/chat.ts'
-import type { IChatMessage } from '@/api/chatDto.ts'
+import { MAIN_CONVERSATION_ID, useChatClient, type ChatClientSubscription } from '@/api/chat.ts'
+import { ChatHistory, createChatHistoryState } from '@/api/chatHistory.ts'
+import { loadMessageHistory } from '@/api/chatHistoryApi.ts'
 import { useUserStore } from '@/stores/user'
 
 defineOptions({ name: 'ChatView' })
 
-interface ChatMessage extends IChatMessage {
-  key: number
-}
-
 const userStore = useUserStore()
 const feedback = useMessage()
-const messages = ref<ChatMessage[]>([])
+const historyState = reactive(createChatHistoryState())
+const history = new ChatHistory(
+  (query) => loadMessageHistory(MAIN_CONVERSATION_ID, query),
+  historyState,
+)
+const messages = computed(() => historyState.messages)
 const pending = ref('')
 const messageList = ref<HTMLElement | null>(null)
 const composer = ref<HTMLTextAreaElement | null>(null)
@@ -25,10 +27,13 @@ let subscription: ChatClientSubscription | undefined
 let connectionSubscription: ChatClientSubscription | undefined
 let client: ReturnType<typeof useChatClient> | undefined
 let isUnmounted = false
-let nextMessageKey = 0
 
 const canSend = computed(
-  () => isSubscribed.value && !isSending.value && pending.value.trim().length > 0,
+  () =>
+    isSubscribed.value &&
+    historyState.isReady &&
+    !isSending.value &&
+    pending.value.trim().length > 0,
 )
 const timeline = computed(() =>
   messages.value.map((message, index, entries) => {
@@ -82,22 +87,26 @@ async function scrollToLatest() {
 
 onMounted(() => {
   client = useChatClient()
-  subscription = client.subscribe('main', ({ message }) => {
+  subscription = client.subscribe(MAIN_CONVERSATION_ID, ({ message }) => {
     if (isUnmounted) return
     const shouldScroll = isNearBottom.value || message.senderId === userStore.user?.id
-    messages.value.push({ ...message, key: nextMessageKey++ })
-    if (shouldScroll) void scrollToLatest()
+    if (history.addLive(message) && shouldScroll) void scrollToLatest()
   })
 
   connectionSubscription = client.onConnectionChange((connected) => {
+    if (isUnmounted) return
     isSubscribed.value = connected
+    void history.setConnected(connected).then(() => {
+      if (!isUnmounted && connected && isNearBottom.value) void scrollToLatest()
+    })
   })
 })
 
 onBeforeUnmount(() => {
   isUnmounted = true
-  subscription?.dispose()
+  history.dispose()
   connectionSubscription?.dispose()
+  subscription?.dispose()
 })
 
 async function send() {
@@ -105,7 +114,7 @@ async function send() {
   const draft = pending.value
   isSending.value = true
   try {
-    await client.send(draft)
+    await client.send(MAIN_CONVERSATION_ID, draft)
     if (pending.value === draft) pending.value = ''
     composer.value?.focus()
   } catch (error) {
@@ -114,6 +123,33 @@ async function send() {
     }
   } finally {
     isSending.value = false
+  }
+}
+
+async function loadOlder() {
+  const list = messageList.value
+  let anchor: HTMLElement | undefined
+  let anchorTop = 0
+  // Capture immediately before insertion so user scrolling and live messages during
+  // the request do not get counted as newly prepended history.
+  const loaded = await history.loadOlder(() => {
+    if (!list) return
+    const top = list.getBoundingClientRect().top
+    anchor = Array.from(list.querySelectorAll<HTMLElement>('li[data-message-id]')).find(
+      (entry) => entry.getBoundingClientRect().bottom >= top,
+    )
+    anchorTop = anchor?.getBoundingClientRect().top ?? 0
+  })
+  if (!loaded || isUnmounted) return
+  await nextTick()
+  if (list && anchor?.isConnected) list.scrollTop += anchor.getBoundingClientRect().top - anchorTop
+}
+
+async function retryHistory() {
+  if (history.retryLoadsOlder) await loadOlder()
+  else {
+    await history.synchronize()
+    if (!isUnmounted && isNearBottom.value) await scrollToLatest()
   }
 }
 
@@ -142,7 +178,36 @@ function handleKeydown(event: KeyboardEvent) {
       @scroll="trackScroll"
     >
       <div
-        v-if="!messages.length"
+        v-if="historyState.error"
+        role="alert"
+        class="mb-3 flex items-center justify-center gap-3 text-sm"
+      >
+        <span>{{ historyState.error }}</span>
+        <n-button
+          size="small"
+          :disabled="!isSubscribed || historyState.isLoading || historyState.isLoadingOlder"
+          @click="retryHistory"
+          >重试</n-button
+        >
+      </div>
+      <div
+        v-if="historyState.isLoading"
+        role="status"
+        class="py-3 text-center text-sm text-neutral-500"
+      >
+        正在同步聊天记录…
+      </div>
+      <div v-if="historyState.hasMore" class="mb-4 flex justify-center">
+        <n-button
+          size="small"
+          :loading="historyState.isLoadingOlder"
+          :disabled="!historyState.isReady"
+          @click="loadOlder"
+          >加载更早消息</n-button
+        >
+      </div>
+      <div
+        v-if="!messages.length && historyState.isReady"
         class="chat-empty flex min-h-full flex-col items-center justify-center text-center text-neutral-500 dark:text-neutral-400"
       >
         <p class="m-0 mb-1.5 text-base">还没有消息</p>
@@ -155,7 +220,7 @@ function handleKeydown(event: KeyboardEvent) {
         aria-live="polite"
         aria-relevant="additions"
       >
-        <li v-for="entry in timeline" :key="entry.message.key">
+        <li v-for="entry in timeline" :key="entry.message.id" :data-message-id="entry.message.id">
           <div v-if="entry.timeLabel" class="time-divider mt-4 mb-6 flex justify-center">
             <time
               class="rounded-full bg-neutral-100 px-3 py-1 text-xs leading-5 text-neutral-500 dark:bg-neutral-900 dark:text-neutral-400"
@@ -220,7 +285,13 @@ function handleKeydown(event: KeyboardEvent) {
       <div class="flex items-center justify-between gap-3">
         <span
           class="composer-hint max-w-37.5 text-xs text-neutral-500 sm:max-w-none dark:text-neutral-400"
-          >{{ isSubscribed ? 'Enter 发送 · Shift + Enter 换行' : '正在连接聊天室…' }}</span
+          >{{
+            !isSubscribed
+              ? '正在连接聊天室…'
+              : historyState.isReady
+                ? 'Enter 发送 · Shift + Enter 换行'
+                : '正在同步聊天记录…'
+          }}</span
         >
         <n-button
           type="primary"

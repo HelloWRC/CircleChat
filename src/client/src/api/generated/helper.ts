@@ -47,6 +47,7 @@ export function buildPayload(url: string, defaultConfig: Record<string, any>, ap
 export type ServicesMap = {
   usersController: typeof import('./services/usersController');
   authenticateController: typeof import('./services/authenticateController');
+  messagesController: typeof import('./services/messagesController');
 };
 
 export function setMethodDefaultConfig<

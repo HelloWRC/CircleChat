@@ -1,6 +1,12 @@
 package dev.hellowrc.circlechat;
 
 import dev.hellowrc.circlechat.model.dto.UserInfo;
+import dev.hellowrc.circlechat.model.entitiy.User;
+import dev.hellowrc.circlechat.model.entitiy.UserRole;
+import dev.hellowrc.circlechat.repository.IUsersRepository;
+import dev.hellowrc.circlechat.repository.IMessagesRepository;
+import tools.jackson.databind.ObjectMapper;
+import org.springframework.beans.factory.annotation.Autowired;
 import dev.hellowrc.circlechat.service.UserService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -49,15 +55,34 @@ class WebSocketProxyTests {
 
     private String sessionCookie;
 
+    @Autowired
+    private IUsersRepository usersRepository;
+
+    @Autowired
+    private IMessagesRepository messagesRepository;
+
+    @Autowired
+    private ObjectMapper mapper;
+
     @BeforeEach
     void login() throws Exception {
+        var persistedUser = usersRepository.findByUsername("alice");
+        if (persistedUser == null) {
+            persistedUser = new User();
+            persistedUser.setUsername("alice");
+            persistedUser.setDisplayName("Alice");
+            persistedUser.setEmail("alice@example.com");
+            persistedUser.setPasswordHash("test");
+            persistedUser.setRole(UserRole.User);
+            persistedUser = usersRepository.saveAndFlush(persistedUser);
+        }
         when(authenticationManager.authenticate(any(Authentication.class))).thenReturn(
                 UsernamePasswordAuthenticationToken.authenticated(
                         "alice", null, List.of(new SimpleGrantedAuthority("ROLE_USER"))
                 )
         );
         when(userService.getUserInfoByUsername("alice")).thenReturn(
-                new UserInfo(1L, "alice", "Alice", "alice@example.com", null, null, null, null, null)
+                new UserInfo(persistedUser.getId(), "alice", "Alice", "alice@example.com", null, null, null, null, null)
         );
         try (var client = HttpClient.newHttpClient()) {
             var response = client.send(HttpRequest.newBuilder(URI.create("http://localhost:" + port
@@ -108,8 +133,6 @@ class WebSocketProxyTests {
         try (var client = HttpClient.newHttpClient();
              var sender = connectAndSubscribe(client);
              var receiver = connectAndSubscribe(client)) {
-            // The receiver's readiness message was also broadcast to the sender.
-            assertThat(sender.frames().await("MESSAGE")).contains("ready");
             sender.send("{\"message\":\"线上消息测试\",\"clientMessageId\":\"sent-1\"}");
             assertThat(sender.frames().await("MESSAGE"))
                     .contains("subscription:room", "线上消息测试", "Alice", "alice");
@@ -135,6 +158,74 @@ class WebSocketProxyTests {
                             .contains("subscription:acks", "reconnect-" + attempt, "\"success\":true");
                 }
             }
+        }
+    }
+
+    @Test
+    void broadcastAndImmediateHistoryUseSameUuidAndSendTimeThenPersist() throws Exception {
+        try (var client = HttpClient.newHttpClient(); var connection = connectAndSubscribe(client)) {
+            connection.send("{\"message\":\"persistent websocket message\",\"clientMessageId\":\"persist-1\"}");
+            var frame = connection.frames().await("MESSAGE");
+            var message = mapper.readTree(frame.substring(frame.indexOf("\n\n") + 2)).get("message");
+            var key = message.get("id").asText();
+            assertThat(java.util.UUID.fromString(key).toString()).isEqualTo(key);
+            assertThat(message.get("conversationId").asLong()).isZero();
+            var sendTime = message.get("sendTime").asText();
+            assertThat(sendTime).matches(".*\\.\\d{6}$");
+            assertThat(connection.frames().await("MESSAGE")).contains("subscription:acks", "\"success\":true");
+            var response = client.send(HttpRequest.newBuilder(URI.create("http://localhost:" + port
+                            + "/api/v1/conversations/0/messages?limit=100"))
+                    .header("Cookie", sessionCookie).GET().build(), HttpResponse.BodyHandlers.ofString());
+            assertThat(response.statusCode()).isEqualTo(200);
+            var history = mapper.readTree(response.body()).get("content").get("messages");
+            var matches = java.util.stream.StreamSupport.stream(history.spliterator(), false)
+                    .filter(entry -> entry.get("id").asText().equals(key)).toList();
+            assertThat(matches).hasSize(1);
+            assertThat(matches.getFirst().get("sendTime").asText()).isEqualTo(sendTime);
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+            while (!messagesRepository.existsByMessageKey(key) && System.nanoTime() < deadline) Thread.sleep(10);
+            assertThat(messagesRepository.existsByMessageKey(key)).isTrue();
+        }
+    }
+
+    @Test
+    void unsupportedConversationSendAndReadyReturnFailureOnlyToRequestingConnection() throws Exception {
+        try (var client = HttpClient.newHttpClient();
+             var sender = connectAndSubscribe(client);
+             var other = connectAndSubscribe(client)) {
+            sender.socket().sendText("SEND\ndestination:/app/conversations/1/messages/send\ncontent-type:application/json\n\n"
+                    + "{\"message\":\"unsupported\",\"clientMessageId\":\"other-room\"}\0", true).get(10, TimeUnit.SECONDS);
+            assertThat(sender.frames().await("MESSAGE"))
+                    .contains("subscription:acks", "\"clientMessageId\":\"other-room\"", "\"success\":false", "会话不存在");
+            sender.socket().sendText("SEND\ndestination:/app/conversations/1/ready\ncontent-type:application/json\n\n"
+                    + "{\"requestId\":\"other-ready\"}\0", true).get(10, TimeUnit.SECONDS);
+            assertThat(sender.frames().await("MESSAGE"))
+                    .contains("subscription:ready", "\"requestId\":\"other-ready\"", "\"success\":false");
+            assertThat(other.frames().frames.poll(300, TimeUnit.MILLISECONDS)).isNull();
+        }
+    }
+
+    @Test
+    void cannotBypassPersistenceByPublishingDirectlyToBroker() throws Exception {
+        try (var client = HttpClient.newHttpClient();
+             var sender = connectAndSubscribe(client);
+             var receiver = connectAndSubscribe(client)) {
+            var key = java.util.UUID.randomUUID().toString();
+            sender.socket().sendText("SEND\ndestination:/topic/conversations/0/messages\ncontent-type:application/json\n\n"
+                    + "{\"message\":{\"id\":\"" + key + "\",\"body\":\"bypass\"}}\0", true)
+                    .get(10, TimeUnit.SECONDS);
+            sender.frames().await("ERROR");
+            assertThat(receiver.frames().frames.poll(300, TimeUnit.MILLISECONDS)).isNull();
+            assertThat(messagesRepository.existsByMessageKey(key)).isFalse();
+        }
+    }
+
+    @Test
+    void rejectsSubscriptionsToUnimplementedConversations() throws Exception {
+        try (var client = HttpClient.newHttpClient(); var connection = connectAndSubscribe(client)) {
+            connection.socket().sendText("SUBSCRIBE\nid:other-room\ndestination:/topic/conversations/1/messages\n\n\0", true)
+                    .get(10, TimeUnit.SECONDS);
+            connection.frames().await("ERROR");
         }
     }
 
@@ -179,14 +270,17 @@ class WebSocketProxyTests {
             socket.sendText("CONNECT\naccept-version:1.2\nhost:" + PUBLIC_HOST
                     + "\nheart-beat:0,0\n\n\0", true).get(10, TimeUnit.SECONDS);
             frames.await("CONNECTED");
-            socket.sendText("SUBSCRIBE\nid:room\ndestination:/topic/chat/main\n\n\0", true)
+            socket.sendText("SUBSCRIBE\nid:room\ndestination:/topic/conversations/0/messages\n\n\0", true)
                     .get(10, TimeUnit.SECONDS);
             socket.sendText("SUBSCRIBE\nid:acks\ndestination:/user/queue/chat/acks\n\n\0", true)
                     .get(10, TimeUnit.SECONDS);
-            // Immediate SEND verifies inbound ordering: both SUBSCRIBEs must be processed first.
-            connection.send("{\"message\":\"ready\",\"clientMessageId\":\"ready\"}");
-            assertThat(frames.await("MESSAGE")).contains("subscription:room", "ready");
-            assertThat(frames.await("MESSAGE")).contains("subscription:acks", "\"success\":true");
+            socket.sendText("SUBSCRIBE\nid:ready\ndestination:/user/queue/chat/ready\n\n\0", true)
+                    .get(10, TimeUnit.SECONDS);
+            // This application barrier confirms all preceding SUBSCRIBEs without broadcasting a test message.
+            socket.sendText("SEND\ndestination:/app/conversations/0/ready\ncontent-type:application/json\n\n"
+                    + "{\"requestId\":\"ready\"}\0", true).get(10, TimeUnit.SECONDS);
+            assertThat(frames.await("MESSAGE"))
+                    .contains("subscription:ready", "\"requestId\":\"ready\"", "\"success\":true");
             return connection;
         } catch (Exception | AssertionError error) {
             connection.close();
@@ -196,7 +290,7 @@ class WebSocketProxyTests {
 
     private record ChatConnection(WebSocket socket, StompFrames frames) implements AutoCloseable {
         void send(String body) throws Exception {
-            socket.sendText("SEND\ndestination:/app/message/send\ncontent-type:application/json\n\n"
+            socket.sendText("SEND\ndestination:/app/conversations/0/messages/send\ncontent-type:application/json\n\n"
                     + body + "\0", true).get(10, TimeUnit.SECONDS);
         }
 

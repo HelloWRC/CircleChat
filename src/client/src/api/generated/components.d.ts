@@ -25,8 +25,23 @@ export interface AuthLoginReq {
 export interface AuthLoginRsp {
   user?: UserInfo;
 }
+export interface ChatMessage {
+  id?: string;
+  conversationId?: number;
+  body?: string;
+  senderDisplayName?: string;
+  senderUsername?: string;
+  senderId?: number;
+  senderAvatarUrl?: string;
+  sendTime?: string;
+}
 export interface HttpRequestRspAuthLoginRsp {
   content?: AuthLoginRsp;
+  statusCode?: number;
+  message?: string;
+}
+export interface HttpRequestRspMessageHistoryRsp {
+  content?: MessageHistoryRsp;
   statusCode?: number;
   message?: string;
 }
@@ -39,6 +54,12 @@ export interface HttpRequestRspUserInfoRsp {
   content?: UserInfoRsp;
   statusCode?: number;
   message?: string;
+}
+export interface MessageHistoryRsp {
+  messages?: ChatMessage[];
+  nextCursor?: string;
+  hasMore?: boolean;
+  snapshotCursor?: string;
 }
 export interface RegisterUserReq {
   username?: string;

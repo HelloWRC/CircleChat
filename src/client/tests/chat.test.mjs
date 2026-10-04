@@ -23,9 +23,10 @@ class StompTransport {
     this.active = true
   }
 
-  connect() {
+  connect(autoReady = true) {
     this.connected = true
     this.options.onConnect({})
+    if (autoReady) this.acknowledgeReady()
   }
 
   close() {
@@ -56,6 +57,25 @@ class StompTransport {
     this.subscriptions.get(destination)?.({ body: JSON.stringify(payload) })
   }
 
+  acknowledgeReady(
+    request = this.publishes.findLast((frame) => frame.destination.endsWith('/ready')),
+    success = true,
+  ) {
+    if (!request) return
+    const { requestId } = JSON.parse(request.body)
+    const conversationId = Number(request.destination.split('/')[3])
+    this.receive('/user/queue/chat/ready', {
+      requestId,
+      conversationId,
+      success,
+      error: success ? null : '会话不存在',
+    })
+  }
+
+  forceDisconnect() {
+    this.close()
+  }
+
   acknowledge(success = true) {
     const request = JSON.parse(this.publishes.at(-1).body)
     this.receive('/user/queue/chat/acks', {
@@ -77,7 +97,7 @@ before(async () => {
   server = await createServer({
     configFile: false,
     root: fileURLToPath(new URL('../', import.meta.url)),
-    server: { middlewareMode: true, hmr: false, watch: null },
+    server: { middlewareMode: true, hmr: false, ws: false, watch: null },
     appType: 'custom',
   })
   ;({ default: ChatClient } = await server.ssrLoadModule('/src/api/chat.ts'))
@@ -107,37 +127,44 @@ test('断线时禁止发送；每次重连恢复所有订阅并继续收发消�
   const { client, transport } = context()
   const messages = []
   const states = []
-  client.subscribe('main', (payload) => messages.push(payload))
-  client.subscribe('other', (payload) => messages.push(payload))
+  client.subscribe(0, (payload) => messages.push(payload))
   client.onConnectionChange((connected) => states.push(connected))
-  await assert.rejects(client.send('before connect'), /尚未连接/)
+  await assert.rejects(client.send(0, 'before connect'), /尚未连接/)
   for (let attempt = 0; attempt < 3; attempt++) {
     transport.connect()
-    assert.deepEqual([...transport.subscriptions.keys()], [
-      '/user/queue/chat/acks', '/topic/chat/main', '/topic/chat/other',
-    ])
-    transport.receive('/topic/chat/main', { message: { body: `received ${attempt}` } })
-    const sent = client.send(`sent ${attempt}`)
+    assert.deepEqual(
+      [...transport.subscriptions.keys()],
+      ['/user/queue/chat/acks', '/user/queue/chat/ready', '/topic/conversations/0/messages'],
+    )
+    transport.receive('/topic/conversations/0/messages', {
+      message: { body: `received ${attempt}` },
+    })
+    const sent = client.send(0, `sent ${attempt}`)
     transport.acknowledge()
     await sent
     transport.close()
-    await assert.rejects(client.send('offline'), /尚未连接/)
+    await assert.rejects(client.send(0, 'offline'), /尚未连接/)
   }
   assert.equal(messages.length, 3)
-  assert.equal(transport.publishes.length, 3)
+  assert.equal(
+    transport.publishes.filter((frame) => frame.destination.endsWith('/messages/send')).length,
+    3,
+  )
   assert.deepEqual(states, [false, true, false, true, false, true, false])
   await client.dispose()
 })
 
 test('发送等待匹配的服务端确认，publish 成功不能被当作发送成功', async () => {
   const { client, transport } = context()
-  client.subscribe('main', () => {})
+  client.subscribe(0, () => {})
   transport.connect()
   let resolved = false
-  const sent = client.send('hello').then(() => { resolved = true })
+  const sent = client.send(0, 'hello').then(() => {
+    resolved = true
+  })
   await Promise.resolve()
   assert.equal(resolved, false)
-  assert.equal(transport.publishes[0].headers['content-type'], 'application/json')
+  assert.equal(transport.publishes.at(-1).headers['content-type'], 'application/json')
   transport.receive('/user/queue/chat/acks', { clientMessageId: 'another-request', success: true })
   await Promise.resolve()
   assert.equal(resolved, false)
@@ -150,16 +177,16 @@ test('发送等待匹配的服务端确认，publish 成功不能被当作发送
 test('服务端拒绝、连接中断、确认超时均返回失败', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] })
   const { client, transport } = context()
-  client.subscribe('main', () => {})
+  client.subscribe(0, () => {})
   transport.connect()
-  const rejected = client.send('rejected')
+  const rejected = client.send(0, 'rejected')
   transport.acknowledge(false)
   await assert.rejects(rejected, /服务器未能发送/)
-  const interrupted = client.send('interrupted')
+  const interrupted = client.send(0, 'interrupted')
   transport.close()
   await assert.rejects(interrupted, /连接已断开/)
   transport.connect()
-  const timedOut = client.send('no acknowledgement')
+  const timedOut = client.send(0, 'no acknowledgement')
   t.mock.timers.tick(15000)
   await assert.rejects(timedOut, /未收到服务器确认/)
   await client.dispose()
@@ -167,31 +194,70 @@ test('服务端拒绝、连接中断、确认超时均返回失败', async (t) =
 
 test('离线取消订阅不访问失效句柄，也不会在重连时复活订阅', async () => {
   const { client, transport } = context()
-  const subscription = client.subscribe('main', () => {})
+  const subscription = client.subscribe(0, () => {})
   transport.connect()
   transport.close()
   subscription.dispose()
   transport.connect()
-  assert.equal(transport.subscriptions.has('/topic/chat/main'), false)
-  const newer = client.subscribe('main', () => {})
+  assert.equal(transport.subscriptions.has('/topic/conversations/0/messages'), false)
+  const newer = client.subscribe(0, () => {})
   subscription.dispose()
-  assert.equal(transport.subscriptions.has('/topic/chat/main'), true)
+  assert.equal(transport.subscriptions.has('/topic/conversations/0/messages'), true)
   newer.dispose()
-  assert.deepEqual(transport.unsubscribes, ['/topic/chat/main'])
+  assert.deepEqual(transport.unsubscribes, ['/topic/conversations/0/messages'])
   await client.dispose()
 })
 
 test('共享订阅只在最后一个监听者退出时取消；登出关闭连接并拒绝未确认发送', async () => {
   const { client, transport } = context()
-  const first = client.subscribe('main', () => {})
-  const second = client.subscribe('main', () => {})
+  const first = client.subscribe(0, () => {})
+  const second = client.subscribe(0, () => {})
   transport.connect()
   first.dispose()
-  assert.equal(transport.subscriptions.has('/topic/chat/main'), true)
-  const pending = client.send('pending')
+  assert.equal(transport.subscriptions.has('/topic/conversations/0/messages'), true)
+  const pending = client.send(0, 'pending')
   await client.dispose()
   await assert.rejects(pending, /聊天连接已关闭/)
   second.dispose()
   assert.equal(transport.active, false)
   assert.equal(transport.deactivations, 1)
+})
+
+test('订阅完成确认前不能发送；确认仅接受当前连接的匹配请求', async () => {
+  const { client, transport } = context()
+  const states = []
+  client.subscribe(0, () => {})
+  client.onConnectionChange((connected) => states.push(connected))
+  transport.connect(false)
+  const oldRequest = transport.publishes.at(-1)
+  assert.equal(oldRequest.destination, '/app/conversations/0/ready')
+  await assert.rejects(client.send(0, 'too early'), /尚未连接/)
+  assert.deepEqual(states, [false])
+  transport.close()
+  transport.connect(false)
+  transport.acknowledgeReady(oldRequest)
+  await assert.rejects(client.send(0, 'stale confirmation'), /尚未连接/)
+  transport.acknowledgeReady()
+  const sent = client.send(0, 'ready now')
+  assert.equal(transport.publishes.at(-1).destination, '/app/conversations/0/messages/send')
+  transport.acknowledge()
+  await sent
+  assert.deepEqual(states, [false, true])
+  assert.throws(() => client.subscribe(1, () => {}), /会话不存在/)
+  await assert.rejects(client.send(1, 'other room'), /会话不存在/)
+  await client.dispose()
+})
+
+test('订阅确认超时或失败会断开当前连接，等待重新订阅', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  const { client, transport } = context()
+  client.subscribe(0, () => {})
+  transport.connect(false)
+  t.mock.timers.tick(10000)
+  assert.equal(transport.connected, false)
+  await assert.rejects(client.send(0, 'offline'), /尚未连接/)
+  transport.connect(false)
+  transport.acknowledgeReady(undefined, false)
+  assert.equal(transport.connected, false)
+  await client.dispose()
 })

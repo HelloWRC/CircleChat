@@ -14,3 +14,10 @@ spring:
   jpa:
     hibernate:
       ddl-auto: update
+
+chat:
+  persistence:
+    capacity: ${CHAT_PERSISTENCE_CAPACITY:10000}
+    shutdown-millis: ${CHAT_PERSISTENCE_SHUTDOWN_MILLIS:30000}
+    retry-millis: ${CHAT_PERSISTENCE_RETRY_MILLIS:1000}
+    max-retry-millis: ${CHAT_PERSISTENCE_MAX_RETRY_MILLIS:30000}

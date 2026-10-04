@@ -1,15 +1,15 @@
 <script setup lang="ts">
-import { useChatClient } from '@/api/chat.ts'
+import { MAIN_CONVERSATION_ID, useChatClient } from '@/api/chat.ts'
 
 const client = useChatClient()
 const messages = ref<Array<string>>([])
 const pending = ref<string>('')
 
 onMounted(() => {
-  client.subscribe('main', (message) => messages.value.push(message.message.body))
+  client.subscribe(MAIN_CONVERSATION_ID, (message) => messages.value.push(message.message.body))
 })
 function send() {
-  client.send(pending.value)
+  client.send(MAIN_CONVERSATION_ID, pending.value)
   pending.value = ''
   messages.value.push(pending.value)
 }

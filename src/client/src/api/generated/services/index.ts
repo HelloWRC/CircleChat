@@ -23,3 +23,4 @@ import { setMethodDefaultConfig } from '../helper';
 
 export const usersControllerDefaultConfig = setMethodDefaultConfig('usersController', {});
 export const authenticateControllerDefaultConfig = setMethodDefaultConfig('authenticateController', {});
+export const messagesControllerDefaultConfig = setMethodDefaultConfig('messagesController', {});

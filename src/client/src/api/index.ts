@@ -1,5 +1,6 @@
 export { api } from './instance'
 export { logout } from './auth'
+export { loadMessageHistory } from './chatHistoryApi'
 export { login } from './generated/services/authenticateController'
 export { me, register } from './generated/services/usersController'
 export type * from './generated/components'
