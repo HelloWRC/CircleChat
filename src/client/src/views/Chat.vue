@@ -114,38 +114,57 @@ function handleKeydown(event: KeyboardEvent) {
 </script>
 
 <template>
-  <section class="chat" aria-label="主聊天室">
-    <header class="chat-header">
-      <h1>主聊天室</h1>
+  <section
+    class="chat flex h-dvh min-w-0 flex-col text-neutral-800 dark:text-neutral-100"
+    aria-label="主聊天室"
+  >
+    <header
+      class="shrink-0 border-b border-neutral-200 p-4 sm:px-7 sm:py-5 dark:border-neutral-800"
+    >
+      <h1 class="m-0 text-lg leading-normal font-semibold">主聊天室</h1>
     </header>
 
-    <div ref="messageList" class="message-list" @scroll="trackScroll">
-      <div v-if="!messages.length" class="chat-empty">
-        <p>还没有消息</p>
-        <span>发送第一条消息，开始聊天吧</span>
+    <div
+      ref="messageList"
+      class="message-list min-h-0 flex-1 overflow-auto overscroll-contain px-3.5 pt-2 pb-5 [scrollbar-width:thin] sm:px-7 sm:pt-3 sm:pb-7"
+      @scroll="trackScroll"
+    >
+      <div
+        v-if="!messages.length"
+        class="chat-empty flex min-h-full flex-col items-center justify-center text-center text-neutral-500 dark:text-neutral-400"
+      >
+        <p class="m-0 mb-1.5 text-base">还没有消息</p>
+        <span class="text-[13px]">发送第一条消息，开始聊天吧</span>
       </div>
 
       <ol
-        class="message-timeline"
+        class="message-timeline m-0 flex list-none flex-col gap-5.5 p-0 sm:gap-7"
         aria-label="聊天消息"
         aria-live="polite"
         aria-relevant="additions"
       >
-        <li v-for="entry in timeline" :key="entry.message.key" class="message-item">
-          <div v-if="entry.timeLabel" class="time-divider">
-            <time :datetime="entry.message.sendTime" :title="entry.fullTime">
+        <li v-for="entry in timeline" :key="entry.message.key">
+          <div v-if="entry.timeLabel" class="time-divider mt-4 mb-6 flex justify-center">
+            <time
+              class="rounded-full bg-neutral-100 px-3 py-1 text-xs leading-5 text-neutral-500 dark:bg-neutral-900 dark:text-neutral-400"
+              :datetime="entry.message.sendTime"
+              :title="entry.fullTime"
+            >
               {{ entry.timeLabel }}
             </time>
           </div>
 
-          <article class="message-row" :class="{ 'message-row--own': entry.isOwn }">
+          <article
+            class="message-row flex items-start gap-2 sm:gap-3"
+            :class="{ 'message-row--own flex-row-reverse': entry.isOwn }"
+          >
             <n-avatar
               round
               :size="40"
               :src="entry.message.senderAvatarUrl || undefined"
               :img-props="{ alt: '' }"
               object-fit="cover"
-              class="message-avatar"
+              class="message-avatar mt-0.5 shrink-0 ring-1 ring-black/10 dark:ring-white/10"
             >
               <template v-if="!entry.message.senderAvatarUrl" #default>
                 {{ Array.from(entry.name)[0] }}
@@ -153,31 +172,50 @@ function handleKeydown(event: KeyboardEvent) {
               <template #fallback>{{ Array.from(entry.name)[0] }}</template>
             </n-avatar>
 
-            <div class="message-content">
-              <div class="message-meta">
-                <span class="message-name" :title="entry.name">{{ entry.name }}</span>
+            <div
+              class="flex min-w-0 max-w-[calc(100%_-_52px)] flex-col sm:max-w-[min(72%,640px)]"
+              :class="entry.isOwn ? 'items-end' : 'items-start'"
+            >
+              <div
+                class="mb-1.25 flex max-w-full text-[13px] leading-5 text-neutral-500 dark:text-neutral-400"
+              >
+                <span class="truncate" :title="entry.name">{{ entry.name }}</span>
               </div>
-              <div class="message-bubble" :title="entry.fullTime">{{ entry.message.body }}</div>
+              <div
+                class="message-bubble max-w-full rounded-2xl bg-neutral-100 px-3 py-2.25 text-[15px] leading-[1.6] wrap-anywhere whitespace-pre-wrap sm:px-3.5 sm:py-2.5 sm:text-base dark:bg-neutral-700"
+                :title="entry.fullTime"
+              >
+                {{ entry.message.body }}
+              </div>
             </div>
           </article>
         </li>
       </ol>
     </div>
 
-    <form class="chat-composer" @submit.prevent="send">
+    <form
+      class="flex shrink-0 flex-col gap-3 border-t border-neutral-200 px-4 pt-3 pb-[max(16px,env(safe-area-inset-bottom))] sm:px-7 sm:pt-4.5 sm:pb-5 dark:border-neutral-800"
+      @submit.prevent="send"
+    >
       <textarea
         ref="composer"
         v-model="pending"
-        class="composer-input"
+        class="composer-input block max-h-50 min-h-16 w-full resize-y rounded-lg border-0 bg-transparent p-2 text-[15px] leading-[1.6] text-inherit outline-none placeholder:text-neutral-500 focus:outline-none sm:min-h-22.5 dark:placeholder:text-neutral-400"
         aria-label="消息内容"
         placeholder="输入消息…"
         @keydown="handleKeydown"
       />
-      <div class="composer-footer">
-        <span class="composer-hint">{{
-          isSubscribed ? 'Enter 发送 · Shift + Enter 换行' : '正在连接聊天室…'
-        }}</span>
-        <n-button type="primary" :disabled="!canSend" attr-type="submit" class="send-button">
+      <div class="flex items-center justify-between gap-3">
+        <span
+          class="composer-hint max-w-37.5 text-xs text-neutral-500 sm:max-w-none dark:text-neutral-400"
+          >{{ isSubscribed ? 'Enter 发送 · Shift + Enter 换行' : '正在连接聊天室…' }}</span
+        >
+        <n-button
+          type="primary"
+          :disabled="!canSend"
+          attr-type="submit"
+          class="h-9! min-w-22 rounded-[10px]! text-neutral-950!"
+        >
           <template #icon>
             <n-icon :component="SendOutline" />
           </template>
@@ -187,245 +225,3 @@ function handleKeydown(event: KeyboardEvent) {
     </form>
   </section>
 </template>
-
-<style scoped>
-.chat {
-  --chat-background: #f5f5f5;
-  --chat-bubble: #fff;
-  --chat-text: #242424;
-  --chat-muted: #757575;
-  --chat-divider: #e5e5e5;
-  --chat-time-background: #e9e9e9;
-  --chat-avatar-outline: oklch(0 0 0 / 0.1);
-
-  display: flex;
-  flex-direction: column;
-  height: 100vh;
-  height: 100dvh;
-  min-width: 0;
-  color: var(--chat-text);
-  background: var(--chat-background);
-}
-
-.chat-header {
-  flex-shrink: 0;
-  padding: 20px 28px;
-  border-bottom: 1px solid var(--chat-divider);
-}
-
-.chat-header h1 {
-  margin: 0;
-  font-size: 18px;
-  font-weight: 600;
-  line-height: 1.5;
-}
-
-.message-list {
-  flex: 1;
-  min-height: 0;
-  padding: 12px 28px 28px;
-  overflow: auto;
-  overscroll-behavior: contain;
-  scrollbar-width: thin;
-  scrollbar-color: var(--chat-divider) transparent;
-}
-
-.message-timeline {
-  display: flex;
-  flex-direction: column;
-  gap: 28px;
-  padding: 0;
-  margin: 0;
-  list-style: none;
-}
-
-.time-divider {
-  display: flex;
-  justify-content: center;
-  margin: 16px 0 24px;
-}
-
-.time-divider time {
-  padding: 4px 12px;
-  font-size: 12px;
-  line-height: 20px;
-  color: var(--chat-muted);
-  background: var(--chat-time-background);
-  border-radius: 999px;
-}
-
-.message-row {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-}
-
-.message-row--own {
-  flex-direction: row-reverse;
-}
-
-.message-avatar {
-  flex-shrink: 0;
-  margin-top: 2px;
-  box-shadow: 0 0 0 1px var(--chat-avatar-outline);
-}
-
-.message-content {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  min-width: 0;
-  max-width: min(72%, 640px);
-}
-
-.message-row--own .message-content {
-  align-items: flex-end;
-}
-
-.message-meta {
-  display: flex;
-  max-width: 100%;
-  margin-bottom: 5px;
-  font-size: 13px;
-  line-height: 20px;
-  color: var(--chat-muted);
-}
-
-.message-name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.message-bubble {
-  max-width: 100%;
-  padding: 10px 14px;
-  font-size: 16px;
-  line-height: 1.6;
-  overflow-wrap: anywhere;
-  white-space: pre-wrap;
-  background: var(--chat-bubble);
-  border-radius: 16px;
-}
-
-.chat-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  min-height: 100%;
-  color: var(--chat-muted);
-  text-align: center;
-}
-
-.chat-empty p {
-  margin: 0 0 6px;
-  font-size: 16px;
-}
-
-.chat-empty span {
-  font-size: 13px;
-}
-
-.chat-composer {
-  display: flex;
-  flex-shrink: 0;
-  flex-direction: column;
-  gap: 12px;
-  padding: 18px 28px 20px;
-  border-top: 1px solid var(--chat-divider);
-}
-
-.composer-input {
-  display: block;
-  width: 100%;
-  min-height: 90px;
-  max-height: 200px;
-  padding: 8px;
-  font: inherit;
-  font-size: 15px;
-  line-height: 1.6;
-  color: var(--chat-text);
-  resize: vertical;
-  background: transparent;
-  border: 0;
-  border-radius: 8px;
-}
-
-.composer-input::placeholder {
-  color: var(--chat-muted);
-}
-
-.composer-input:focus {
-  outline: none;
-}
-
-.composer-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.composer-hint {
-  font-size: 12px;
-  color: var(--chat-muted);
-}
-
-.send-button {
-  min-width: 88px;
-  height: 36px;
-  border-radius: 10px;
-}
-
-@media (prefers-color-scheme: dark) {
-  .chat {
-    --chat-background: #222;
-    --chat-bubble: #3b3b3b;
-    --chat-text: #f5f5f5;
-    --chat-muted: #929292;
-    --chat-divider: #303030;
-    --chat-time-background: #191919;
-    --chat-avatar-outline: oklch(1 0 0 / 0.1);
-  }
-}
-
-@media (max-width: 640px) {
-  .chat-header {
-    padding: 16px;
-  }
-
-  .message-list {
-    padding: 8px 14px 20px;
-  }
-
-  .message-timeline {
-    gap: 22px;
-  }
-
-  .message-row {
-    gap: 8px;
-  }
-
-  .message-content {
-    max-width: calc(100% - 52px);
-  }
-
-  .message-bubble {
-    padding: 9px 12px;
-    font-size: 15px;
-  }
-
-  .chat-composer {
-    padding: 12px 16px max(16px, env(safe-area-inset-bottom));
-  }
-
-  .composer-input {
-    min-height: 64px;
-  }
-
-  .composer-hint {
-    max-width: 150px;
-  }
-}
-</style>
