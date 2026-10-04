@@ -1,4 +1,4 @@
-package dev.hellowrc.circlechat.configure;
+package dev.hellowrc.circlechat.configuration;
 
 import org.springframework.context.annotation.Configuration;
 import org.springframework.messaging.simp.config.MessageBrokerRegistry;
