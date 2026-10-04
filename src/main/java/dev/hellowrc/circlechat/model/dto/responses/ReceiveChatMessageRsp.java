@@ -1,9 +1,8 @@
 package dev.hellowrc.circlechat.model.dto.responses;
 
-import dev.hellowrc.circlechat.model.chat.ChatMessage;
+import dev.hellowrc.circlechat.model.dto.ChatMessage;
 
 public record ReceiveChatMessageRsp(
-        String message,
-        String senderName
+        ChatMessage message
 ) {
 }

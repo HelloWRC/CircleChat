@@ -9,6 +9,8 @@
     "preview": "vite preview",
     "build-only": "vite build",
     "type-check": "vue-tsc --build",
+    "test": "node --test tests/*.test.mjs",
+    "api:generate": "worma gen -p .",
     "lint": "run-s \"lint:*\"",
     "lint:oxlint": "oxlint . --fix",
     "lint:eslint": "eslint . --fix --cache",
@@ -16,6 +18,7 @@
   },
   "dependencies": {
     "@stomp/stompjs": "^7.3.0",
+    "@vicons/ionicons5": "^0.13.0",
     "alova": "^3.5.5",
     "naive-ui": "^2.45.3",
     "pinia": "^4.0.3",
@@ -46,7 +49,8 @@
     "vite": "^8.2.2",
     "vite-plugin-vue-devtools": "^8.2.1",
     "vue-eslint-parser": "^10.4.1",
-    "vue-tsc": "^3.3.11"
+    "vue-tsc": "^3.3.11",
+    "wormajs": "^0.4.0"
   },
   "engines": {
     "node": "^22.18.0 || >=24.12.0"

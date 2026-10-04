@@ -28,6 +28,9 @@ coverage
 
 .eslintcache
 
+# API generator cache and change history
+.worma-cache/
+
 # Cypress
 /cypress/videos/
 /cypress/screenshots/

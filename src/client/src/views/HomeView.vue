@@ -6,7 +6,7 @@ const messages = ref<Array<string>>([])
 const pending = ref<string>('')
 
 onMounted(() => {
-  client.subscribe('main', (message) => messages.value.push(message.message))
+  client.subscribe('main', (message) => messages.value.push(message.message.body))
 })
 function send() {
   client.send(pending.value)

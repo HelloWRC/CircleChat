@@ -1,15 +1,13 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import HomeView from '../views/HomeView.vue'
+import { pinia } from '@/stores'
+import { setupAuthGuard } from './guards'
+import { routes } from './routes'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
-  routes: [
-    {
-      path: '/',
-      name: 'home',
-      component: HomeView,
-    }
-  ],
+  routes,
 })
+
+setupAuthGuard(router, pinia)
 
 export default router

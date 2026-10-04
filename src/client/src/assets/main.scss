@@ -1,0 +1,14 @@
+@use './variables' as theme;
+
+:root {
+  --color-primary: #{theme.$primary-color};
+  --font-sans: #{theme.$font-family-sans};
+}
+
+html {
+  font-family: var(--font-sans);
+}
+
+.text-primary {
+  color: var(--color-primary);
+}

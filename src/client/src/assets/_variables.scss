@@ -1,0 +1,10 @@
+@use 'sass:color';
+
+$primary-color: #00efe8;
+$primary-color-hover: color.mix(white, $primary-color, 20%);
+$primary-color-pressed: color.mix(black, $primary-color, 20%);
+
+$font-family-sans:
+  -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB',
+  'Microsoft YaHei', 'Noto Sans CJK SC', 'Source Han Sans SC', 'WenQuanYi Micro Hei', Arial,
+  sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol';

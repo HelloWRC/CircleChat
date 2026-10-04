@@ -1,6 +1,7 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
   "plugins": ["eslint", "typescript", "unicorn", "oxc", "vue"],
+  "ignorePatterns": ["src/api/generated/**"],
   "env": {
     "browser": true
   },

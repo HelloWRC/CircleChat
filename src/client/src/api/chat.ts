@@ -1,4 +1,4 @@
-import { Client, IMessage, type StompSubscription } from '@stomp/stompjs'
+import { Client, type IMessage, type StompSubscription } from '@stomp/stompjs'
 import type {IReceiveChatMessageRsp} from "@/api/chatDto.ts";
 import TaskCompletionSource from "@/TaskCompletionSource.ts";
 
@@ -76,6 +76,7 @@ class ChatClient {
       if (this.subscriptions[channel].size <= 0 && this.proxySubscriptions[channel] != undefined) {
         this.proxySubscriptions[channel].unsubscribe()
         delete this.proxySubscriptions[channel]
+        delete this.proxies[channel]
       }
     })
   }

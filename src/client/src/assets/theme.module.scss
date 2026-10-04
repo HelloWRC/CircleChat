@@ -1,0 +1,9 @@
+@use './variables' as theme;
+
+// Share the SCSS theme variables with Naive UI.
+:export {
+  fontFamily: theme.$font-family-sans;
+  primaryColor: theme.$primary-color;
+  primaryColorHover: theme.$primary-color-hover;
+  primaryColorPressed: theme.$primary-color-pressed;
+}
