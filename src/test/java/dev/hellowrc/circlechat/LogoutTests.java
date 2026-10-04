@@ -1,6 +1,7 @@
 package dev.hellowrc.circlechat;
 
 import dev.hellowrc.circlechat.configuration.SecurityConfig;
+import dev.hellowrc.circlechat.configuration.SpaWebMvcConfig;
 import dev.hellowrc.circlechat.controller.AuthenticateController;
 import dev.hellowrc.circlechat.controller.UsersController;
 import dev.hellowrc.circlechat.model.dto.UserInfo;
@@ -33,10 +34,11 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.cookie;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest({AuthenticateController.class, UsersController.class})
-@Import({SecurityConfig.class, LogoutTests.TestSecurityConfiguration.class})
+@Import({SecurityConfig.class, SpaWebMvcConfig.class, LogoutTests.TestSecurityConfiguration.class})
 class LogoutTests {
     @TestConfiguration(proxyBeanMethods = false)
     @EnableWebSecurity
@@ -118,5 +120,23 @@ class LogoutTests {
                 .andExpect(status().is4xxClientError());
         assertThat(session.isInvalid()).isFalse();
         mvc.perform(get("/api/v1/users/me").session(session)).andExpect(status().isOk());
+    }
+
+    @Test
+    void anonymousFrontendRoutesFallBackToSpaIndex() throws Exception {
+        mvc.perform(get("/auth/login"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.TEXT_HTML))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("<title>CiRCLE Chat</title>")));
+
+        mvc.perform(get("/settings"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("<div id=\"app\"></div>")));
+    }
+
+    @Test
+    void spaFallbackDoesNotMaskMissingStaticResources() throws Exception {
+        mvc.perform(get("/assets/missing.js"))
+                .andExpect(status().isNotFound());
     }
 }

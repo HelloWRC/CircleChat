@@ -34,13 +34,13 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/admin/**")
                         .hasRole("ADMIN")
 
-                        // WebSocket 握手要求登录
-                        .requestMatchers("/ws/**")
+                        // API 和 WebSocket 仍然要求登录
+                        .requestMatchers("/api", "/api/**", "/ws", "/ws/**")
                         .authenticated()
 
-                        // 剩下 API 全部要求登录
+                        // SPA 页面和前端静态资源允许匿名访问
                         .anyRequest()
-                        .authenticated()
+                        .permitAll()
                 )
                 .csrf(csrf -> csrf.ignoringRequestMatchers("/api/**"))
                 .logout(logout -> logout

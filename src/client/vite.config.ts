@@ -10,7 +10,7 @@ import Components from 'unplugin-vue-components/vite'
 import { NaiveUiResolver } from 'unplugin-vue-components/resolvers'
 
 // https://vite.dev/config/
-export default defineConfig({
+export default defineConfig(({ command }) => ({
   plugins: [
     tailwindcss(),
     vue(),
@@ -25,11 +25,11 @@ export default defineConfig({
           'alova/client': ['useRequest', 'useWatcher', 'useFetcher'],
         },
       ],
-      dts: 'src/auto-imports.d.ts',
+      dts: command === 'serve' ? 'src/auto-imports.d.ts' : false,
     }),
     Components({
       resolvers: [NaiveUiResolver()],
-      dts: 'src/components.d.ts',
+      dts: command === 'serve' ? 'src/components.d.ts' : false,
     }),
     vueDevTools(),
   ],
@@ -51,4 +51,4 @@ export default defineConfig({
       },
     },
   },
-})
+}))

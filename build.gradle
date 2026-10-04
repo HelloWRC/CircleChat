@@ -36,3 +36,45 @@ dependencies {
 tasks.named('test') {
     useJUnitPlatform()
 }
+
+def frontendDir = layout.projectDirectory.dir('src/client')
+def frontendDistDir = frontendDir.dir('dist')
+def pnpmExecutable = System.getProperty('os.name').toLowerCase().contains('windows')
+        ? 'pnpm.cmd'
+        : 'pnpm'
+
+tasks.register('pnpmInstall', Exec) {
+    group = 'frontend'
+    description = 'Installs the Vite frontend dependencies from the lockfile.'
+
+    workingDir frontendDir
+    commandLine pnpmExecutable, 'install', '--frozen-lockfile'
+
+    inputs.files(frontendDir.file('package.json'), frontendDir.file('pnpm-lock.yaml'))
+    outputs.dir(frontendDir.dir('node_modules'))
+}
+
+tasks.register('buildFrontend', Exec) {
+    group = 'frontend'
+    description = 'Builds the production Vite frontend.'
+    dependsOn tasks.named('pnpmInstall')
+
+    workingDir frontendDir
+    commandLine pnpmExecutable, 'run', 'build'
+
+    inputs.files(fileTree(frontendDir) {
+        exclude 'dist/**', 'node_modules/**', '.worma-cache/**', '*.tsbuildinfo'
+    })
+    outputs.dir(frontendDistDir)
+}
+
+tasks.named('processResources') {
+    dependsOn tasks.named('buildFrontend')
+    from(frontendDistDir) {
+        into 'static'
+    }
+}
+
+tasks.named('clean') {
+    delete frontendDistDir
+}
