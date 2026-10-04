@@ -1,7 +1,7 @@
 import MarkdownIt from 'markdown-it'
 
 // Messages are untrusted: keep HTML disabled and use the parser's URL validation.
-const markdown = new MarkdownIt({ html: false, breaks: true, linkify: true }).disable('image')
+const markdown = new MarkdownIt({ html: false, breaks: true, linkify: true })
 
 markdown.renderer.rules.link_open = (tokens, index, options, _env, renderer) => {
   const token = tokens[index]!

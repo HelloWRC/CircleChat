@@ -57,16 +57,25 @@ test('renders explicit and automatic links with safe new-tab attributes', () => 
   assert.match(html, /<a href="https:\/\/example.org" target="_blank" rel="noopener noreferrer">/)
 })
 
-test('renders raw HTML as text and never embeds message images', () => {
-  const html = renderMessageMarkdown(
-    '<script>alert(1)</script>\n<img src=x onerror=alert(1)>\n![图片](https://example.com/pixel.png)',
+test('renders Markdown images with optional alt text and titles', () => {
+  assert.equal(
+    renderMessageMarkdown('![](https://example.com/photo.png)'),
+    '<p><img src="https://example.com/photo.png" alt=""></p>\n',
   )
+  assert.equal(
+    renderMessageMarkdown('![图片描述](https://example.com/photo.png "图片标题")'),
+    '<p><img src="https://example.com/photo.png" alt="图片描述" title="图片标题"></p>\n',
+  )
+})
+
+test('continues rendering raw HTML as text when Markdown images are enabled', () => {
+  const html = renderMessageMarkdown('<script>alert(1)</script>\n<img src=x onerror=alert(1)>')
   assert.doesNotMatch(html, /<(script|img)\b/i)
   assert.match(html, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/)
   assert.match(html, /&lt;img src=x onerror=alert\(1\)&gt;/)
 })
 
-test('rejects executable and encoded dangerous link protocols', () => {
+test('rejects executable and encoded dangerous link and image protocols', () => {
   for (const url of [
     'javascript:alert(1)',
     'JaVaScRiPt:alert(1)',
@@ -74,10 +83,23 @@ test('rejects executable and encoded dangerous link protocols', () => {
     'jav&#x61;script:alert(1)',
     'vbscript:msgbox(1)',
     'data:text/html;base64,PHNjcmlwdD4=',
+    'data:image/svg+xml;base64,PHN2Zz4=',
     'file:///etc/passwd',
   ]) {
     assert.doesNotMatch(renderMessageMarkdown(`[点击](${url})`), /<a\b/i, url)
+    assert.doesNotMatch(renderMessageMarkdown(`![图片](${url})`), /<img\b/i, url)
   }
+})
+
+test('escapes image alt text and titles instead of injecting HTML attributes', () => {
+  const html = renderMessageMarkdown(
+    '![&quot; onerror=&quot;alert(1) <script>](https://example.com/photo.png "&quot; onload=&quot;alert(1)")',
+  )
+  assert.match(html, /<img\b/)
+  assert.doesNotMatch(html, / (onerror|onload)="/i)
+  assert.doesNotMatch(html, /<script>/i)
+  assert.match(html, /alt="&quot; onerror=&quot;alert\(1\) &lt;script&gt;"/)
+  assert.match(html, /title="&quot; onload=&quot;alert\(1\)"/)
 })
 
 test('escapes link titles and fence language attributes', () => {

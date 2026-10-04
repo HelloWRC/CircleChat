@@ -3,11 +3,12 @@ import { computed } from 'vue'
 import { renderMessageMarkdown } from '@/utils/messageMarkdown'
 
 const props = defineProps<{ body: string }>()
+defineEmits<{ imageLoad: [] }>()
 const html = computed(() => renderMessageMarkdown(props.body))
 </script>
 
 <template>
-  <div class="message-markdown" v-html="html" />
+  <div class="message-markdown" @load.capture="$emit('imageLoad')" v-html="html" />
 </template>
 
 <style scoped>
@@ -95,6 +96,17 @@ const html = computed(() => renderMessageMarkdown(props.body))
   border-radius: 2px;
   outline: 2px solid currentColor;
   outline-offset: 2px;
+}
+
+.message-markdown :deep(img) {
+  display: block;
+  max-width: 100%;
+  max-height: 24rem;
+  width: auto;
+  height: auto;
+  margin: 0.4em 0;
+  border-radius: 8px;
+  object-fit: contain;
 }
 
 .message-markdown :deep(code) {
