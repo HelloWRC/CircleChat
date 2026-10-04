@@ -6,6 +6,7 @@ import { MAIN_CONVERSATION_ID, useChatClient, type ChatClientSubscription } from
 import { ChatHistory, createChatHistoryState } from '@/api/chatHistory.ts'
 import { loadMessageHistory } from '@/api/chatHistoryApi.ts'
 import { useUserStore } from '@/stores/user'
+import MessageBody from '@/components/MessageBody.vue'
 
 defineOptions({ name: 'ChatView' })
 
@@ -259,10 +260,10 @@ function handleKeydown(event: KeyboardEvent) {
                 <span class="truncate" :title="entry.name">{{ entry.name }}</span>
               </div>
               <div
-                class="message-bubble max-w-full rounded-2xl bg-neutral-100 px-3 py-2.25 text-[15px] leading-[1.6] wrap-anywhere whitespace-pre-wrap sm:px-3.5 sm:py-2.5 sm:text-base dark:bg-neutral-700"
+                class="message-bubble min-w-0 max-w-full rounded-2xl bg-neutral-100 px-3 py-2.25 text-[15px] leading-[1.6] sm:px-3.5 sm:py-2.5 sm:text-base dark:bg-neutral-700"
                 :title="entry.fullTime"
               >
-                {{ entry.message.body }}
+                <MessageBody :body="entry.message.body" />
               </div>
             </div>
           </article>
