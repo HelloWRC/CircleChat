@@ -1,3 +1,7 @@
+server:
+  # Restore the public scheme/host after TLS terminates at the reverse proxy.
+  forward-headers-strategy: framework
+
 spring:
   config:
     import: "optional:file:./.env[.properties]"

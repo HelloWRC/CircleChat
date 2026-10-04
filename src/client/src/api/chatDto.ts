@@ -14,4 +14,11 @@ export interface IReceiveChatMessageRsp {
 
 export interface ISendChatMessageReq {
   message: string
+  clientMessageId: string
+}
+
+export interface ISendChatMessageRsp {
+  clientMessageId: string
+  success: boolean
+  error: string | null
 }

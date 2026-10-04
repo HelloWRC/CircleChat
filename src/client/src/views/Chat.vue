@@ -19,13 +19,17 @@ const pending = ref('')
 const messageList = ref<HTMLElement | null>(null)
 const composer = ref<HTMLTextAreaElement | null>(null)
 const isSubscribed = ref(false)
+const isSending = ref(false)
 const isNearBottom = ref(true)
 let subscription: ChatClientSubscription | undefined
+let connectionSubscription: ChatClientSubscription | undefined
 let client: ReturnType<typeof useChatClient> | undefined
 let isUnmounted = false
 let nextMessageKey = 0
 
-const canSend = computed(() => isSubscribed.value && pending.value.trim().length > 0)
+const canSend = computed(
+  () => isSubscribed.value && !isSending.value && pending.value.trim().length > 0,
+)
 const timeline = computed(() =>
   messages.value.map((message, index, entries) => {
     const date = new Date(message.sendTime)
@@ -76,32 +80,40 @@ async function scrollToLatest() {
   if (list) list.scrollTop = list.scrollHeight
 }
 
-onMounted(async () => {
+onMounted(() => {
   client = useChatClient()
-  subscription = await client.subscribe('main', ({ message }) => {
+  subscription = client.subscribe('main', ({ message }) => {
     if (isUnmounted) return
     const shouldScroll = isNearBottom.value || message.senderId === userStore.user?.id
     messages.value.push({ ...message, key: nextMessageKey++ })
     if (shouldScroll) void scrollToLatest()
   })
 
-  if (isUnmounted) subscription.dispose()
-  else isSubscribed.value = true
+  connectionSubscription = client.onConnectionChange((connected) => {
+    isSubscribed.value = connected
+  })
 })
 
 onBeforeUnmount(() => {
   isUnmounted = true
   subscription?.dispose()
+  connectionSubscription?.dispose()
 })
 
-function send() {
+async function send() {
   if (!canSend.value || !client) return
+  const draft = pending.value
+  isSending.value = true
   try {
-    client.send(pending.value)
-    pending.value = ''
+    await client.send(draft)
+    if (pending.value === draft) pending.value = ''
     composer.value?.focus()
-  } catch {
-    feedback.error('消息发送失败，请检查连接后重试')
+  } catch (error) {
+    if (!isUnmounted) {
+      feedback.error(error instanceof Error ? error.message : '消息发送失败，请检查连接后重试')
+    }
+  } finally {
+    isSending.value = false
   }
 }
 
@@ -213,6 +225,7 @@ function handleKeydown(event: KeyboardEvent) {
         <n-button
           type="primary"
           :disabled="!canSend"
+          :loading="isSending"
           attr-type="submit"
           class="h-9! min-w-22 rounded-[10px]! text-neutral-950!"
         >

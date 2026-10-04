@@ -3,6 +3,7 @@ import { defineStore } from 'pinia'
 import { login as loginRequest, logout as logoutRequest, me } from '@/api'
 import type { AuthLoginReq, UserInfo } from '@/api'
 import { HttpError } from '@/api/instance'
+import { disconnectChatClient } from '@/api/chat'
 
 const STORAGE_KEY = 'circlechat.user'
 
@@ -58,6 +59,7 @@ export const useUserStore = defineStore('user', () => {
   }
 
   function clearSession() {
+    void disconnectChatClient()
     sessionVersion += 1
     saveUser(null)
     initialized.value = true
