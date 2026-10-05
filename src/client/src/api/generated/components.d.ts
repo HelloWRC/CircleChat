@@ -35,8 +35,36 @@ export interface ChatMessage {
   senderAvatarUrl?: string;
   sendTime?: string;
 }
+export interface ConversationInfo {
+  id?: number;
+  title?: string;
+  hasNewMessage?: boolean;
+  isMuted?: boolean;
+  type?: 'Unknown' | 'Friend' | 'Chatroom';
+}
+export interface GetConversationMetaRsp {
+  info?: ConversationInfo;
+}
+export interface GetConversationsRsp {
+  conversations?: ConversationInfo[];
+  page?: number;
+  size?: number;
+  totalElements?: number;
+  totalPages?: number;
+  hasMore?: boolean;
+}
 export interface HttpRequestRspAuthLoginRsp {
   content?: AuthLoginRsp;
+  statusCode?: number;
+  message?: string;
+}
+export interface HttpRequestRspGetConversationMetaRsp {
+  content?: GetConversationMetaRsp;
+  statusCode?: number;
+  message?: string;
+}
+export interface HttpRequestRspGetConversationsRsp {
+  content?: GetConversationsRsp;
   statusCode?: number;
   message?: string;
 }

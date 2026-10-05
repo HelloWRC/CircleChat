@@ -16,8 +16,9 @@ public class Message extends EntityBase {
     @Column(name = "message_key", nullable = false, length = 36)
     private String messageKey = UUID.randomUUID().toString();
 
-    @Column(name = "conversation_id", nullable = false)
-    private Long conversationId = 0L;
+    @ManyToOne
+    @JoinColumn(name = "conversation_id", nullable = false)
+    private Conversation conversation;
 
     @Column(name = "sent_at", nullable = false, updatable = false)
     private LocalDateTime sentAt = LocalDateTime.now().truncatedTo(ChronoUnit.MICROS);
@@ -31,8 +32,6 @@ public class Message extends EntityBase {
 
     public String getMessageKey() { return messageKey; }
     public void setMessageKey(String messageKey) { this.messageKey = messageKey; }
-    public Long getConversationId() { return conversationId; }
-    public void setConversationId(Long conversationId) { this.conversationId = conversationId; }
     public LocalDateTime getSentAt() { return sentAt; }
     public void setSentAt(LocalDateTime sentAt) { this.sentAt = sentAt; }
 
@@ -50,5 +49,13 @@ public class Message extends EntityBase {
 
     public void setSender(User sender) {
         this.sender = sender;
+    }
+
+    public Conversation getConversation() {
+        return conversation;
+    }
+
+    public void setConversation(Conversation conversation) {
+        this.conversation = conversation;
     }
 }

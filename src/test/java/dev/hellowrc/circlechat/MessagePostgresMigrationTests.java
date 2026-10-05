@@ -27,6 +27,7 @@ class MessagePostgresMigrationTests {
                 String originalKey = null;
                 for (int attempt = 0; attempt < 2; attempt++) {
                     ScriptUtils.executeSqlScript(connection, new FileSystemResource("deploy/sql/001-message-persistence.sql"));
+                    ScriptUtils.executeSqlScript(connection, new FileSystemResource("deploy/sql/002-conversations.sql"));
                     try (var rows = statement.executeQuery("SELECT * FROM messages ORDER BY id")) {
                         assertThat(rows.next()).isTrue();
                         assertThat(rows.getLong("conversation_id")).isZero();
@@ -38,6 +39,10 @@ class MessagePostgresMigrationTests {
                         assertThat(rows.next()).isTrue();
                         assertThat(rows.getTimestamp("sent_at")).isNotNull();
                     }
+                }
+                try (var rows = statement.executeQuery("SELECT count(*) FROM conversations WHERE id = 0")) {
+                    assertThat(rows.next()).isTrue();
+                    assertThat(rows.getInt(1)).isEqualTo(1);
                 }
                 try (var insert = connection.prepareStatement("INSERT INTO messages (id, body, sender_id, conversation_id, message_key, sent_at) VALUES (3, ?, 1, 0, '00000000-0000-0000-0000-000000000003', CURRENT_TIMESTAMP)")) {
                     insert.setString(1, "长消息".repeat(1000));

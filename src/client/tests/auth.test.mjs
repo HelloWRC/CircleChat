@@ -330,19 +330,19 @@ test('首页自动跳转聊天路由并保留查询参数和锚点', async () =>
   respond = () => userResponse()
   const { router } = context()
   await router.push('/?tab=latest#messages')
-  assert.equal(router.currentRoute.value.name, 'chat')
-  assert.equal(router.currentRoute.value.fullPath, '/chat?tab=latest#messages')
+  assert.equal(router.currentRoute.value.name, 'chat.conversation')
+  assert.equal(router.currentRoute.value.fullPath, '/chat/0?tab=latest#messages')
 })
 
 test('未登录访问首页时登录回跳地址为聊天页', async () => {
   const { router, user } = context()
   await router.push('/')
   assert.equal(router.currentRoute.value.name, 'auth.login')
-  assert.equal(router.currentRoute.value.query.redirect, '/chat')
+  assert.equal(router.currentRoute.value.query.redirect, '/chat/0')
   respond = () => userResponse()
   await user.login({ username: 'alice', password: 'secret' })
   await router.replace(getLoginRedirect(router, router.currentRoute.value.query.redirect))
-  assert.equal(router.currentRoute.value.fullPath, '/chat')
+  assert.equal(router.currentRoute.value.fullPath, '/chat/0')
 })
 
 test('侧栏菜单选择跳转真实聊天路由，选中状态跟随当前页面', { timeout: 3000 }, async () => {
@@ -358,7 +358,7 @@ test('侧栏菜单选择跳转真实聊天路由，选中状态跟随当前页�
   assert.match(html, /data-active-menu="none"/)
   const navigation = new Promise((resolve) => {
     const remove = session.router.afterEach((to) => {
-      if (to.name === 'chat') {
+      if (to.name === 'chat.conversation') {
         remove()
         resolve()
       }
@@ -366,7 +366,7 @@ test('侧栏菜单选择跳转真实聊天路由，选中状态跟随当前页�
   })
   session.selectMenu('chat')
   await navigation
-  assert.equal(session.router.currentRoute.value.fullPath, '/chat')
+  assert.equal(session.router.currentRoute.value.fullPath, '/chat/0')
   html = await renderSidebar(session)
   assert.match(html, /data-active-menu="chat"/)
 })
@@ -406,7 +406,7 @@ test('刷新后校验 Session 并使用服务端最新用户信息', async () =>
   const { router, user } = context()
   assert.equal(user.isAuthenticated, false)
   await router.push('/')
-  assert.equal(router.currentRoute.value.name, 'chat')
+  assert.equal(router.currentRoute.value.name, 'chat.conversation')
   assert.equal(user.user.displayName, latest.displayName)
   assert.deepEqual(JSON.parse(storage.get(key)), latest)
 })
@@ -426,7 +426,7 @@ test('本地数据损坏时仍可通过有效 Cookie 恢复登录', async () => 
   const { router, user } = context()
   await router.push('/')
   assert.equal(user.isAuthenticated, true)
-  assert.equal(router.currentRoute.value.name, 'chat')
+  assert.equal(router.currentRoute.value.name, 'chat.conversation')
 })
 
 test('浏览器禁止本地存储时登录仍可使用', async () => {
@@ -463,7 +463,7 @@ test('登录后返回原目标，已登录访问登录页也自动返回', async
   await router.replace(getLoginRedirect(router, router.currentRoute.value.query.redirect))
   assert.equal(router.currentRoute.value.fullPath, '/room/42?tab=chat#latest')
   await router.push('/auth/login')
-  assert.equal(router.currentRoute.value.name, 'chat')
+  assert.equal(router.currentRoute.value.name, 'chat.conversation')
 })
 
 test('登录回跳拒绝外部地址和登录页循环', () => {
@@ -513,7 +513,7 @@ test('业务接口 403 但 Session 有效时保留登录', async () => {
   await assert.rejects(api.Get('/v1/admin/private').send())
   await user.refreshUser()
   assert.equal(user.isAuthenticated, true)
-  assert.equal(router.currentRoute.value.name, 'chat')
+  assert.equal(router.currentRoute.value.name, 'chat.conversation')
 })
 
 test('会话校验网络失败不放行受保护页，后续可重试恢复', async () => {
@@ -545,7 +545,7 @@ test('已登录访问注册页自动返回目标页', async () => {
   await router.push({ name: 'auth.register', query: { redirect: '/room/42' } })
   assert.equal(router.currentRoute.value.fullPath, '/room/42')
   await router.push('/auth/register')
-  assert.equal(router.currentRoute.value.name, 'chat')
+  assert.equal(router.currentRoute.value.name, 'chat.conversation')
 })
 
 test('注册接口提交账户信息，注册成功后仍需登录', async () => {

@@ -4,9 +4,11 @@ import dev.hellowrc.circlechat.model.dto.ChatMessage;
 import dev.hellowrc.circlechat.model.dto.MessageCursor;
 import dev.hellowrc.circlechat.model.entitiy.Message;
 import dev.hellowrc.circlechat.model.entitiy.User;
+import dev.hellowrc.circlechat.repository.IConversationsRepository;
 import dev.hellowrc.circlechat.repository.IMessagesRepository;
 import dev.hellowrc.circlechat.utils.GravatarUtils;
 import jakarta.persistence.EntityManager;
+import org.jspecify.annotations.NonNull;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Propagation;
@@ -19,10 +21,12 @@ import java.util.List;
 public class MessageStore {
     private final IMessagesRepository repository;
     private final EntityManager entityManager;
+    private final IConversationsRepository conversationsRepository;
 
-    public MessageStore(IMessagesRepository repository, EntityManager entityManager) {
+    public MessageStore(IMessagesRepository repository, EntityManager entityManager, IConversationsRepository conversationsRepository) {
         this.repository = repository;
         this.entityManager = entityManager;
+        this.conversationsRepository = conversationsRepository;
     }
 
     @Transactional(readOnly = true, isolation = Isolation.READ_COMMITTED)
@@ -38,7 +42,7 @@ public class MessageStore {
         if (repository.existsByMessageKey(dto.id())) return;
         var message = new Message();
         message.setMessageKey(dto.id());
-        message.setConversationId(dto.conversationId());
+        message.setConversation(conversationsRepository.getReferenceById(dto.conversationId()));
         message.setSentAt(dto.sendTime());
         message.setBody(dto.body());
         message.setSender(entityManager.getReference(User.class, dto.senderId()));
@@ -48,11 +52,7 @@ public class MessageStore {
     @Transactional(readOnly = true, propagation = Propagation.REQUIRES_NEW, isolation = Isolation.READ_COMMITTED)
     public List<ChatMessage> read(long conversationId, MessageCursor before, MessageCursor after,
                                   MessageCursor upper, int count) {
-        var jpql = new StringBuilder("select m from Message m join fetch m.sender where m.conversationId = :conversationId");
-        jpql.append(" and (m.sentAt < :upperTime or (m.sentAt = :upperTime and m.messageKey <= :upperKey))");
-        if (before != null) jpql.append(" and (m.sentAt < :beforeTime or (m.sentAt = :beforeTime and m.messageKey < :beforeKey))");
-        if (after != null) jpql.append(" and (m.sentAt > :afterTime or (m.sentAt = :afterTime and m.messageKey > :afterKey))");
-        jpql.append(after == null ? " order by m.sentAt desc, m.messageKey desc" : " order by m.sentAt asc, m.messageKey asc");
+        var jpql = createJpql(before, after);
         var query = entityManager.createQuery(jpql.toString(), Message.class)
                 .setParameter("conversationId", conversationId)
                 .setParameter("upperTime", upper.time()).setParameter("upperKey", upper.key());
@@ -60,9 +60,18 @@ public class MessageStore {
         if (after != null) query.setParameter("afterTime", after.time()).setParameter("afterKey", after.key());
         return query.setMaxResults(count).getResultList().stream().map(m -> {
             var sender = m.getSender();
-            return new ChatMessage(m.getMessageKey(), m.getConversationId(), m.getBody(),
+            return new ChatMessage(m.getMessageKey(), m.getConversation().getId(), m.getBody(),
                     sender.getDisplayName(), sender.getUsername(), sender.getId(),
                     GravatarUtils.getAvatarUrl(sender.getEmail(), GravatarUtils.SmallAvatarSize), m.getSentAt());
         }).toList();
+    }
+
+    private static @NonNull StringBuilder createJpql(MessageCursor before, MessageCursor after) {
+        var jpql = new StringBuilder("select m from Message m join fetch m.sender where m.conversation.id = :conversationId");
+        jpql.append(" and (m.sentAt < :upperTime or (m.sentAt = :upperTime and m.messageKey <= :upperKey))");
+        if (before != null) jpql.append(" and (m.sentAt < :beforeTime or (m.sentAt = :beforeTime and m.messageKey < :beforeKey))");
+        if (after != null) jpql.append(" and (m.sentAt > :afterTime or (m.sentAt = :afterTime and m.messageKey > :afterKey))");
+        jpql.append(after == null ? " order by m.sentAt desc, m.messageKey desc" : " order by m.sentAt asc, m.messageKey asc");
+        return jpql;
     }
 }

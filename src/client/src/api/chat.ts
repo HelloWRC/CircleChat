@@ -4,7 +4,7 @@ import type { IChatReadyRsp, IReceiveChatMessageRsp, ISendChatMessageRsp } from 
 export const MAIN_CONVERSATION_ID = 0
 
 function requireConversation(conversationId: number) {
-  if (conversationId !== MAIN_CONVERSATION_ID) throw new Error('会话不存在')
+  if (!Number.isSafeInteger(conversationId) || conversationId < 0) throw new Error('会话不存在')
 }
 
 export class ChatClientSubscription {
@@ -21,6 +21,7 @@ export class ChatClientSubscription {
 
 type MessageCallback = (message: IReceiveChatMessageRsp) => void
 type PendingSend = {
+  conversationId: number
   resolve: () => void
   reject: (error: Error) => void
   timeout: ReturnType<typeof setTimeout>
@@ -35,6 +36,7 @@ class ChatClient {
     { conversationId: number; timeout: ReturnType<typeof setTimeout> }
   >()
   private readonly connectionListeners = new Set<(connected: boolean) => void>()
+  private readonly errorListeners = new Set<(error: string) => void>()
   private readonly pendingSends = new Map<string, PendingSend>()
   private connected = false
   private disposed = false
@@ -71,7 +73,7 @@ class ChatClient {
       },
       onStompError: (frame) => {
         console.error('STOMP error:', frame.headers['message'], frame.body)
-        this.connectionLost('服务器拒绝了消息，请检查连接后重试')
+        this.connectionLost(frame.headers['message'] || '服务器拒绝了消息，请检查连接后重试')
       },
     })
     this.client.activate()
@@ -83,6 +85,11 @@ class ChatClient {
     return new ChatClientSubscription(() => this.connectionListeners.delete(callback))
   }
 
+  onConnectionError(callback: (error: string) => void) {
+    this.errorListeners.add(callback)
+    return new ChatClientSubscription(() => this.errorListeners.delete(callback))
+  }
+
   private setConnected(connected: boolean) {
     if (this.connected === connected) return
     this.connected = connected
@@ -90,6 +97,7 @@ class ChatClient {
   }
 
   private connectionLost(reason: string) {
+    for (const callback of this.errorListeners) callback(reason)
     this.proxySubscriptions.clear()
     this.clearReadyRequests()
     this.setConnected(false)
@@ -149,7 +157,7 @@ class ChatClient {
       this.subscriptions.set(channel, callbacks)
     }
     callbacks.add(callback)
-    if (this.connected && this.client.connected) this.registerProxy(channel)
+    if (this.client.connected) this.registerProxy(channel)
 
     return new ChatClientSubscription(() => {
       callbacks.delete(callback)
@@ -158,6 +166,12 @@ class ChatClient {
       const proxy = this.proxySubscriptions.get(channel)
       if (this.client.connected) proxy?.unsubscribe()
       this.proxySubscriptions.delete(channel)
+      for (const [id, pending] of this.pendingSends) {
+        if (pending.conversationId !== channel) continue
+        clearTimeout(pending.timeout)
+        pending.reject(new Error('已离开会话，未确认的消息可能已发送，请检查聊天记录'))
+        this.pendingSends.delete(id)
+      }
       for (const [id, request] of this.readyRequests) {
         if (request.conversationId !== channel) continue
         clearTimeout(request.timeout)
@@ -189,7 +203,7 @@ class ChatClient {
         this.pendingSends.delete(clientMessageId)
         reject(new Error('未收到服务器确认，消息可能已发送，请检查聊天记录后再重试'))
       }, 15000)
-      this.pendingSends.set(clientMessageId, { resolve, reject, timeout })
+      this.pendingSends.set(clientMessageId, { conversationId, resolve, reject, timeout })
       try {
         this.client.publish({
           destination: `/app/conversations/${conversationId}/messages/send`,
@@ -209,6 +223,7 @@ class ChatClient {
     this.connectionLost('聊天连接已关闭')
     this.subscriptions.clear()
     this.connectionListeners.clear()
+    this.errorListeners.clear()
     return this.client.deactivate({ force: true })
   }
 }

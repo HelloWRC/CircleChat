@@ -1,5 +1,10 @@
 # CiRCLE Chat 项目约定
 
+## 代码规范
+
+- 编写的代码必须符合项目的格式化标准，禁止生成压缩代码。
+- 如无必要，绝不过度封装。
+
 ## 构建与验证
 
 - 后端构建：`./gradlew bootJar`；回归测试：`./gradlew test`。JAR 包含前端产物，部署时前后端必须一起更新。
@@ -27,22 +32,24 @@ map $http_upgrade $connection_upgrade {
 
 ## 会话与接口
 
-仅支持主会话 `0`，尚无会话创建、成员管理或切换功能。其他会话的发送和就绪请求失败，历史查询返回 HTTP 404。只允许订阅主会话和当前连接的确认队列；直接向 broker 发布或订阅其他目标会收到 STOMP ERROR 并断开。
+支持分页查询并切换当前用户参与的会话，前端路由为 `/chat/{id}`；主会话 `0` 为默认入口，尚无会话创建或成员管理界面。发送、就绪、历史查询和消息订阅均校验当前用户的会话成员权限；非成员的发送和就绪请求失败，历史查询返回 HTTP 404。只允许订阅已加入的会话消息和当前连接的确认队列；直接向 broker 发布或订阅其他目标会收到 STOMP ERROR 并断开。
 
 | 用途 | 入口 / 正文 |
 | --- | --- |
-| 发送 | `/app/conversations/0/messages/send`；`{ message, clientMessageId }` |
-| 广播 | `/topic/conversations/0/messages` |
+| 会话列表 | `GET /api/v1/conversations?page=0&size=20`；需要登录 Session，`size` 范围 1–100 |
+| 发送 | `/app/conversations/{id}/messages/send`；`{ message, clientMessageId }` |
+| 广播 | `/topic/conversations/{id}/messages` |
 | 发送确认 | `/user/queue/chat/acks` |
-| 订阅就绪 | `/app/conversations/0/ready`；`{ requestId }` |
+| 订阅就绪 | `/app/conversations/{id}/ready`；`{ requestId }` |
 | 就绪确认 | `/user/queue/chat/ready`；`requestId, conversationId, success, error` |
-| 历史查询 | `GET /api/v1/conversations/0/messages`；需要登录 Session |
+| 历史查询 | `GET /api/v1/conversations/{id}/messages`；需要登录 Session |
 
 消息对外使用 UUID 字符串 `id` 和 `conversationId`，数据库自增主键仅内部使用。`sendTime` 在广播前生成，保留微秒精度；入库和历史沿用同值，审计时间独立记录。
 
 ## 连接与发送
 
 - 服务端按同一连接的接收顺序处理 `SUBSCRIBE` / `SEND`。每次连接后先订阅消息、发送确认和就绪队列，再发送 `ready`；收到就绪确认后拉取历史，同步完成才允许发送。断线立即禁用发送；退出登录关闭连接、停止重连并清除订阅。
+- 切换会话清理旧订阅、确认请求和历史加载，忽略旧响应；草稿按会话保存，退出登录清除会话列表与全部草稿。不同会话分别保存消息同步边界，持久化仍共用单个 FIFO 队列。
 - 发送确认只返回发起请求的连接；成功表示已广播并进入待写队列，不表示数据库已提交。收到成功确认才清空输入；拒绝、断线或 15 秒确认超时保留草稿并显示错误。超时可能是确认丢失，重试前先检查聊天记录。
 - 首次加载最近 50 条，支持加载更早消息并保持可见消息位置。重连从上次完整同步的游标分页补齐，同时接收实时广播；全部补齐成功才推进游标。历史与实时消息按 UUID 去重，失败保留消息、草稿并提供重试。
 
@@ -69,4 +76,4 @@ map $http_upgrade $connection_upgrade {
 
 ## 数据库升级
 
-已有数据库：停止旧应用、备份数据库，在 PostgreSQL 执行 `deploy/sql/001-message-persistence.sql` 后启动新 JAR。脚本可重复执行，回填会话 `0`、稳定 UUID 和发送时间，调整正文为 TEXT，并建立约束与索引；不能只依赖 Hibernate `ddl-auto: update` 回填。全新数据库由 Hibernate 建表，无需升级脚本。
+已有数据库：停止旧应用、备份数据库，在 PostgreSQL 依次执行 `deploy/sql/001-message-persistence.sql` 与 `deploy/sql/002-conversations.sql` 后启动新 JAR。脚本可重复执行，回填会话 `0`、稳定 UUID 和发送时间，调整正文为 TEXT，预建主会话并移除旧的全局用户成员唯一约束；不能只依赖 Hibernate `ddl-auto: update` 回填。全新数据库由 Hibernate 建表并由应用初始化主会话，无需升级脚本。

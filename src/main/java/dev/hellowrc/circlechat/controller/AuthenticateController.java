@@ -4,7 +4,9 @@ import dev.hellowrc.circlechat.model.dto.UserInfo;
 import dev.hellowrc.circlechat.model.dto.requests.AuthLoginReq;
 import dev.hellowrc.circlechat.model.dto.responses.AuthLoginRsp;
 import dev.hellowrc.circlechat.model.dto.responses.HttpRequestRsp;
+import dev.hellowrc.circlechat.repository.IChatroomsRepository;
 import dev.hellowrc.circlechat.repository.IUsersRepository;
+import dev.hellowrc.circlechat.service.ChatroomService;
 import dev.hellowrc.circlechat.service.UserService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -22,16 +24,23 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthenticateController {
     private final AuthenticationManager authenticationManager;
     private final SecurityContextRepository securityContextRepository;
-    private final IUsersRepository usersRepository;
     private final UserService userService;
+    private final ChatroomService chatroomService;
+    private final IChatroomsRepository chatroomsRepository;
+    private IUsersRepository usersRepository;
 
     public AuthenticateController(AuthenticationManager authenticationManager,
                                   SecurityContextRepository securityContextRepository,
-                                  IUsersRepository usersRepository, UserService userService) {
+                                  UserService userService,
+                                  ChatroomService chatroomService,
+                                  IChatroomsRepository chatroomsRepository,
+                                  IUsersRepository usersRepository) {
         this.authenticationManager = authenticationManager;
         this.securityContextRepository = securityContextRepository;
-        this.usersRepository = usersRepository;
         this.userService = userService;
+        this.chatroomService = chatroomService;
+        this.chatroomsRepository = chatroomsRepository;
+        this.usersRepository = usersRepository;
     }
 
     @PostMapping("login")
@@ -62,6 +71,9 @@ public class AuthenticateController {
         );
 
         var user = userService.getUserInfoByUsername(body.username());
+        chatroomService.addChatroomMemberIfNotExists(
+                chatroomsRepository.findById(ChatroomService.MAIN_CHATROOM_ID).orElse(null),
+                usersRepository.findByUsername(body.username()));
         return new HttpRequestRsp<>(new AuthLoginRsp(user), 200, "ok");
     }
 }

@@ -2,35 +2,45 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { NAvatar, NButton, NIcon, useMessage } from 'naive-ui'
 import { SendOutline } from '@vicons/ionicons5'
-import { MAIN_CONVERSATION_ID, useChatClient, type ChatClientSubscription } from '@/api/chat.ts'
+import { useChatClient, type ChatClientSubscription } from '@/api/chat.ts'
 import { ChatHistory, createChatHistoryState } from '@/api/chatHistory.ts'
 import { loadMessageHistory } from '@/api/chatHistoryApi.ts'
 import { useUserStore } from '@/stores/user'
 import MessageBody from '@/components/MessageBody.vue'
+import { useConversationsStore } from '@/stores/conversations'
 
 defineOptions({ name: 'ChatView' })
+const props = defineProps<{ id: string }>()
+const conversationId = Number(props.id)
+const conversations = useConversationsStore()
+const title = computed(() => conversations.title(conversationId))
 
 const userStore = useUserStore()
 const feedback = useMessage()
 const historyState = reactive(createChatHistoryState())
-const history = new ChatHistory(
-  (query) => loadMessageHistory(MAIN_CONVERSATION_ID, query),
-  historyState,
-)
+const history = new ChatHistory((query) => loadMessageHistory(conversationId, query), historyState)
 const messages = computed(() => historyState.messages)
-const pending = ref('')
+const pending = computed({
+  get: () => conversations.drafts[props.id] ?? '',
+  set: (value: string) => {
+    conversations.drafts[props.id] = value
+  },
+})
 const messageList = ref<HTMLElement | null>(null)
 const composer = ref<HTMLTextAreaElement | null>(null)
 const isSubscribed = ref(false)
 const isSending = ref(false)
 const isNearBottom = ref(true)
+const connectionError = ref<string | null>(null)
 let subscription: ChatClientSubscription | undefined
 let connectionSubscription: ChatClientSubscription | undefined
+let errorSubscription: ChatClientSubscription | undefined
 let client: ReturnType<typeof useChatClient> | undefined
 let isUnmounted = false
 
 const canSend = computed(
   () =>
+    conversations.currentConversation?.id === conversationId &&
     isSubscribed.value &&
     historyState.isReady &&
     !isSending.value &&
@@ -86,9 +96,14 @@ async function scrollToLatest() {
   if (list) list.scrollTop = list.scrollHeight
 }
 
-onMounted(() => {
+async function openConversation() {
+  const loaded = await conversations.loadCurrent(conversationId)
+  if (!loaded || isUnmounted || client) return
   client = useChatClient()
-  subscription = client.subscribe(MAIN_CONVERSATION_ID, ({ message }) => {
+  errorSubscription = client.onConnectionError((error) => {
+    connectionError.value = error
+  })
+  subscription = client.subscribe(conversationId, ({ message }) => {
     if (isUnmounted) return
     const shouldScroll = isNearBottom.value || message.senderId === userStore.user?.id
     if (history.addLive(message) && shouldScroll) void scrollToLatest()
@@ -97,16 +112,20 @@ onMounted(() => {
   connectionSubscription = client.onConnectionChange((connected) => {
     if (isUnmounted) return
     isSubscribed.value = connected
+    if (connected) connectionError.value = null
     void history.setConnected(connected).then(() => {
       if (!isUnmounted && connected && isNearBottom.value) void scrollToLatest()
     })
   })
-})
+}
+
+onMounted(openConversation)
 
 onBeforeUnmount(() => {
   isUnmounted = true
   history.dispose()
   connectionSubscription?.dispose()
+  errorSubscription?.dispose()
   subscription?.dispose()
 })
 
@@ -115,7 +134,8 @@ async function send() {
   const draft = pending.value
   isSending.value = true
   try {
-    await client.send(MAIN_CONVERSATION_ID, draft)
+    await client.send(conversationId, draft)
+    if (isUnmounted) return
     if (pending.value === draft) pending.value = ''
     composer.value?.focus()
   } catch (error) {
@@ -164,13 +184,20 @@ function handleKeydown(event: KeyboardEvent) {
 
 <template>
   <section
-    class="chat flex h-dvh min-w-0 flex-col text-neutral-800 dark:text-neutral-100"
-    aria-label="主聊天室"
+    class="chat flex h-full min-w-0 flex-col text-neutral-800 dark:text-neutral-100"
+    :aria-label="title"
   >
     <header
       class="shrink-0 border-b border-neutral-200 p-4 sm:px-7 sm:py-5 dark:border-neutral-800"
     >
-      <h1 class="m-0 text-lg leading-normal font-semibold">主聊天室</h1>
+      <h1 class="m-0 truncate text-lg leading-normal font-semibold" :title="title">{{ title }}</h1>
+      <p
+        v-if="conversations.isLoadingCurrent"
+        role="status"
+        class="m-0 mt-1 text-sm text-neutral-500"
+      >
+        正在加载会话信息…
+      </p>
     </header>
 
     <div
@@ -179,11 +206,21 @@ function handleKeydown(event: KeyboardEvent) {
       @scroll="trackScroll"
     >
       <div
-        v-if="historyState.error"
+        v-if="conversations.currentError"
         role="alert"
         class="mb-3 flex items-center justify-center gap-3 text-sm"
       >
-        <span>{{ historyState.error }}</span>
+        <span>{{ conversations.currentError }}</span>
+        <n-button size="small" :loading="conversations.isLoadingCurrent" @click="openConversation">
+          重试
+        </n-button>
+      </div>
+      <div
+        v-if="historyState.error || connectionError"
+        role="alert"
+        class="mb-3 flex items-center justify-center gap-3 text-sm"
+      >
+        <span>{{ historyState.error || connectionError }}</span>
         <n-button
           size="small"
           :disabled="!isSubscribed || historyState.isLoading || historyState.isLoadingOlder"
@@ -290,11 +327,15 @@ function handleKeydown(event: KeyboardEvent) {
         <span
           class="composer-hint max-w-37.5 text-xs text-neutral-500 sm:max-w-none dark:text-neutral-400"
           >{{
-            !isSubscribed
-              ? '正在连接聊天室…'
-              : historyState.isReady
-                ? 'Enter 发送 · Shift + Enter 换行'
-                : '正在同步聊天记录…'
+            conversations.isLoadingCurrent
+              ? '正在加载会话信息…'
+              : conversations.currentError
+                ? '会话信息加载失败，请重试'
+                : !isSubscribed
+                  ? '正在连接聊天室…'
+                  : historyState.isReady
+                    ? 'Enter 发送 · Shift + Enter 换行'
+                    : '正在同步聊天记录…'
           }}</span
         >
         <n-button

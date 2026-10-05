@@ -44,6 +44,24 @@ class MessageServiceTests {
     }
 
     @Test
+    void conversationBoundariesAndPendingHistoryStayIndependent() throws Exception {
+        start(10);
+        var future = LocalDateTime.of(2090, 1, 1, 12, 0);
+        when(store.latest(7)).thenReturn(new MessageCursor(7, future, "00000000-0000-0000-0000-000000000001"));
+        var release = new CountDownLatch(1);
+        doAnswer(call -> { latch(release); return null; }).when(store).write(any());
+        try {
+            var other = service.send(7, "other room", user);
+            var main = service.send(0, "main room", user);
+            assertThat(other.sendTime()).isAfter(future);
+            assertThat(main.sendTime()).isBefore(future);
+            assertThat(service.history(7, null, null, null, 50).messages()).containsExactly(other);
+            assertThat(service.history(0, null, null, null, 50).messages()).containsExactly(main);
+            verify(messaging).convertAndSend(eq("/topic/conversations/7/messages"), any(Object.class));
+        } finally { release.countDown(); }
+    }
+
+    @Test
     void broadcastsBeforeWritingAndHistoryIncludesInFlightMessageUntilCommit() throws Exception {
         start(1);
         var writing = new CountDownLatch(1);
@@ -147,7 +165,7 @@ class MessageServiceTests {
     @Test
     void validatesInputsAndBroadcastFailureReleasesReservedCapacity() {
         start(1);
-        assertThatThrownBy(() -> service.send(1, "other room", user)).hasMessage("会话不存在");
+        assertThatThrownBy(() -> service.send(-1, "invalid room", user)).hasMessage("会话不存在");
         assertThatThrownBy(() -> service.send(0, "  ", user)).hasMessage("消息不能为空");
         doThrow(new IllegalStateException("broadcast failure")).when(messaging).convertAndSend(anyString(), any(Object.class));
         assertThatThrownBy(() -> service.send(0, "one", user)).hasMessage("broadcast failure");

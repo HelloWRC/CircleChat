@@ -117,6 +117,47 @@ after(async () => {
   else delete globalThis.window
 })
 
+test('切换会话清理旧订阅与未确认发送，新会话就绪前禁止发送', async () => {
+  const { client, transport } = context()
+  const first = client.subscribe(0, () => {})
+  transport.connect()
+  const pending = client.send(0, 'old draft')
+  first.dispose()
+  await assert.rejects(pending, /已离开会话/)
+  const messages = []
+  const second = client.subscribe(42, (payload) => messages.push(payload))
+  assert.equal(transport.subscriptions.has('/topic/conversations/0/messages'), false)
+  assert.equal(transport.subscriptions.has('/topic/conversations/42/messages'), true)
+  assert.equal(transport.publishes.at(-1).destination, '/app/conversations/42/ready')
+  await assert.rejects(client.send(42, 'too early'), /尚未连接/)
+  transport.acknowledgeReady()
+  transport.receive('/topic/conversations/0/messages', { message: { body: 'stale' } })
+  transport.receive('/topic/conversations/42/messages', { message: { body: 'new' } })
+  assert.equal(messages.length, 1)
+  const sent = client.send(42, 'new draft')
+  assert.equal(transport.publishes.at(-1).destination, '/app/conversations/42/messages/send')
+  transport.acknowledge()
+  await sent
+  second.dispose()
+  await client.dispose()
+})
+
+test('就绪确认到达前切换会话，旧确认不会允许新会话发送', async () => {
+  const { client, transport } = context()
+  const old = client.subscribe(0, () => {})
+  transport.connect(false)
+  const oldReady = transport.publishes.at(-1)
+  old.dispose()
+  client.subscribe(7, () => {})
+  transport.acknowledgeReady(oldReady)
+  await assert.rejects(client.send(7, 'not ready'), /尚未连接/)
+  transport.acknowledgeReady()
+  const sent = client.send(7, 'ready')
+  transport.acknowledge()
+  await sent
+  await client.dispose()
+})
+
 function context() {
   const transport = new StompTransport()
   const client = new ChatClient(transport)
@@ -243,8 +284,8 @@ test('订阅完成确认前不能发送；确认仅接受当前连接的匹配�
   transport.acknowledge()
   await sent
   assert.deepEqual(states, [false, true])
-  assert.throws(() => client.subscribe(1, () => {}), /会话不存在/)
-  await assert.rejects(client.send(1, 'other room'), /会话不存在/)
+  assert.throws(() => client.subscribe(-1, () => {}), /会话不存在/)
+  await assert.rejects(client.send(-1, 'invalid room'), /会话不存在/)
   await client.dispose()
 })
 

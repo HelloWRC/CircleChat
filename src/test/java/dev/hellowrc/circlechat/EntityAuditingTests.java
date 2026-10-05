@@ -3,6 +3,7 @@ package dev.hellowrc.circlechat;
 import dev.hellowrc.circlechat.abstraction.model.entity.EntityBase;
 import dev.hellowrc.circlechat.configuration.JpaAuditingConfig;
 import dev.hellowrc.circlechat.model.entitiy.Message;
+import dev.hellowrc.circlechat.model.entitiy.Conversation;
 import dev.hellowrc.circlechat.model.entitiy.User;
 import dev.hellowrc.circlechat.model.entitiy.UserRole;
 import jakarta.persistence.EntityManager;
@@ -53,6 +54,9 @@ class EntityAuditingTests {
         entityManager.persist(sender);
 
         var message = new Message();
+        var conversation = new Conversation();
+        entityManager.persist(conversation);
+        message.setConversation(conversation);
         message.setSender(sender);
         message.setBody("Initial message");
 

@@ -70,18 +70,22 @@ async function handleUserMenuSelect(key: string | number) {
 </script>
 
 <template>
-  <n-layout has-sider class="min-h-screen">
+  <n-layout has-sider class="min-h-dvh">
     <n-layout-sider
       bordered
       :width="72"
-      content-style="display: flex; flex-direction: column; align-items: center; padding: 12px 8px;"
-      class="app-sidebar"
+      content-class="flex! flex-col items-center px-2 py-3"
+      class="h-dvh min-h-dvh"
     >
-      <router-link :to="{ name: 'chat' }" class="logo-link" aria-label="CircleChat 首页">
+      <router-link
+        :to="{ name: 'chat' }"
+        class="mb-4 grid size-12 place-items-center rounded-[14px] transition-[background-color,transform] duration-150 hover:bg-(--color-primary)/12 active:scale-96 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--color-primary)"
+        aria-label="CircleChat 首页"
+      >
         <img :src="logo" width="36" height="36" alt="" />
       </router-link>
 
-      <nav class="sidebar-nav" aria-label="主导航">
+      <nav class="w-14" aria-label="主导航">
         <n-menu
           collapsed
           :collapsed-width="56"
@@ -93,7 +97,7 @@ async function handleUserMenuSelect(key: string | number) {
         />
       </nav>
 
-      <div class="account-menu">
+      <div class="mt-auto">
         <n-dropdown
           v-model:show="isUserMenuOpen"
           trigger="click"
@@ -104,7 +108,7 @@ async function handleUserMenuSelect(key: string | number) {
         >
           <button
             type="button"
-            class="account-trigger"
+            class="grid size-12 cursor-pointer place-items-center rounded-[14px] border-0 bg-transparent p-0 text-inherit transition-[background-color,transform] duration-150 hover:bg-(--color-primary)/12 active:scale-96 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--color-primary) aria-expanded:bg-(--color-primary)/12"
             :aria-label="`打开 ${displayName} 的用户菜单`"
             aria-haspopup="menu"
             :aria-expanded="isUserMenuOpen"
@@ -117,11 +121,11 @@ async function handleUserMenuSelect(key: string | number) {
               :src="avatarUrl"
               object-fit="cover"
               :img-props="{ alt: '' }"
-              class="user-avatar"
+              class="ring-1 ring-black/10 dark:ring-white/10"
             >
               <template v-if="!avatarUrl" #default>{{ avatarInitial }}</template>
               <template #fallback>
-                <span class="avatar-fallback">{{ avatarInitial }}</span>
+                <span class="grid size-full place-items-center">{{ avatarInitial }}</span>
               </template>
             </n-avatar>
           </button>
@@ -129,94 +133,10 @@ async function handleUserMenuSelect(key: string | number) {
       </div>
     </n-layout-sider>
 
-    <n-layout class="min-h-screen">
-      <n-layout-content>
+    <n-layout class="min-h-dvh min-w-0">
+      <n-layout-content content-class="min-w-0">
         <router-view />
       </n-layout-content>
     </n-layout>
   </n-layout>
 </template>
-
-<style scoped>
-.app-sidebar {
-  min-height: 100vh;
-}
-
-.logo-link {
-  display: grid;
-  width: 48px;
-  height: 48px;
-  margin-bottom: 16px;
-  place-items: center;
-  border-radius: 14px;
-  transition-property: background-color, transform;
-  transition-duration: 150ms;
-}
-
-.logo-link:hover {
-  background-color: color-mix(in srgb, var(--color-primary) 12%, transparent);
-}
-
-.logo-link:active {
-  transform: scale(0.96);
-}
-
-.logo-link:focus-visible {
-  outline: 2px solid var(--color-primary);
-  outline-offset: 2px;
-}
-
-.sidebar-nav {
-  width: 56px;
-}
-
-.account-menu {
-  margin-top: auto;
-}
-
-.account-trigger {
-  display: grid;
-  width: 48px;
-  height: 48px;
-  padding: 0;
-  color: inherit;
-  cursor: pointer;
-  background: transparent;
-  border: 0;
-  border-radius: 14px;
-  place-items: center;
-  transition-property: background-color, transform;
-  transition-duration: 150ms;
-}
-
-.account-trigger:hover,
-.account-trigger[aria-expanded='true'] {
-  background-color: color-mix(in srgb, var(--color-primary) 12%, transparent);
-}
-
-.account-trigger:active {
-  transform: scale(0.96);
-}
-
-.account-trigger:focus-visible {
-  outline: 2px solid var(--color-primary);
-  outline-offset: 2px;
-}
-
-.user-avatar {
-  box-shadow: 0 0 0 1px oklch(0 0 0 / 0.1);
-}
-
-.avatar-fallback {
-  display: grid;
-  width: 100%;
-  height: 100%;
-  place-items: center;
-}
-
-@media (prefers-color-scheme: dark) {
-  .user-avatar {
-    box-shadow: 0 0 0 1px oklch(1 0 0 / 0.1);
-  }
-}
-</style>

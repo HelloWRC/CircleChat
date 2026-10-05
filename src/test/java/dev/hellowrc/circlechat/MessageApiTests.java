@@ -1,6 +1,11 @@
 package dev.hellowrc.circlechat;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
+import dev.hellowrc.circlechat.repository.IUsersRepository;
+import dev.hellowrc.circlechat.repository.IConversationsRepository;
+import dev.hellowrc.circlechat.service.UserService;
+import dev.hellowrc.circlechat.service.ConversationService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -27,6 +32,16 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 class MessageApiTests {
     @Autowired private MockMvc mvc;
+    @Autowired private IUsersRepository users;
+    @Autowired private IConversationsRepository conversations;
+    @Autowired private UserService userService;
+    @Autowired private ConversationService conversationService;
+
+    @BeforeEach
+    void joinMainConversation() {
+        if (!users.existsByUsername("alice")) userService.createUser("alice", "alice@example.com", "Alice", "secret");
+        conversationService.addParticipant(conversations.findById(0L).orElseThrow(), users.findByUsername("alice"));
+    }
 
     private static MockHttpServletRequestBuilder authenticatedGet(String url) {
         var context = SecurityContextHolder.createEmptyContext();
@@ -56,6 +71,21 @@ class MessageApiTests {
     }
 
     @Test
+    void readsConversationMetadataAndRejectsMissingOrUnauthorizedConversations() throws Exception {
+        mvc.perform(authenticatedGet("/api/v1/conversations/0/meta"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content.info.id").value(0))
+                .andExpect(jsonPath("$.content.info.title").value("主聊天室"))
+                .andExpect(jsonPath("$.content.info.type").value("Chatroom"));
+        mvc.perform(authenticatedGet("/api/v1/conversations/9223372036854775807/meta"))
+                .andExpect(status().isNotFound());
+        mvc.perform(get("/api/v1/conversations/0/meta")).andExpect(status().isForbidden());
+        var privateConversation = conversationService.createConversation();
+        mvc.perform(authenticatedGet("/api/v1/conversations/" + privateConversation.getId() + "/meta"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     void historyRequiresAuthentication() throws Exception {
         mvc.perform(get("/api/v1/conversations/0/messages")).andExpect(status().isForbidden());
     }
@@ -66,6 +96,9 @@ class MessageApiTests {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.components.schemas.ChatMessage.properties.id.type").value("string"))
                 .andExpect(jsonPath("$.components.schemas.ChatMessage.properties.conversationId.type").value("integer"))
+                .andExpect(jsonPath("$.paths['/api/v1/conversations'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/conversations/{id}/meta'].get").exists())
+                .andExpect(jsonPath("$.components.schemas.GetConversationsRsp.properties.totalElements.type").value("integer"))
                 .andReturn();
         Files.createDirectories(Path.of("build"));
         Files.writeString(Path.of("build/openapi.json"), result.getResponse().getContentAsString());

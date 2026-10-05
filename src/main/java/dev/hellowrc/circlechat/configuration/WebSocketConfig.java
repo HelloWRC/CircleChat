@@ -1,5 +1,6 @@
 package dev.hellowrc.circlechat.configuration;
 
+import dev.hellowrc.circlechat.service.ConversationService;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.beans.factory.ObjectProvider;
@@ -21,9 +22,12 @@ import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerCo
 @EnableWebSocketMessageBroker
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     private final ObjectProvider<MessageChannel> outbound;
+    private final ConversationService conversations;
 
-    public WebSocketConfig(@Qualifier("clientOutboundChannel") ObjectProvider<MessageChannel> outbound) {
+    public WebSocketConfig(@Qualifier("clientOutboundChannel") ObjectProvider<MessageChannel> outbound,
+                           ConversationService conversations) {
         this.outbound = outbound;
+        this.conversations = conversations;
     }
 
     private Message<?> reject(StompHeaderAccessor request, String error) {
@@ -51,7 +55,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
                     return reject(headers, "请通过会话发送接口发送消息");
                 }
                 if (headers.getCommand() == StompCommand.SUBSCRIBE &&
-                        !destination.equals("/topic/conversations/0/messages") &&
+                        !canSubscribeToConversation(destination, headers) &&
                         !destination.equals("/user/queue/chat/acks") &&
                         !destination.equals("/user/queue/chat/ready")) {
                     return reject(headers, "订阅目标不存在");
@@ -59,6 +63,20 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
                 return message;
             }
         });
+    }
+
+    private boolean canSubscribeToConversation(String destination, StompHeaderAccessor headers) {
+        var prefix = "/topic/conversations/";
+        var suffix = "/messages";
+        if (!destination.startsWith(prefix) || !destination.endsWith(suffix) || headers.getUser() == null)
+            return false;
+        var id = destination.substring(prefix.length(), destination.length() - suffix.length());
+        if (!id.matches("0|[1-9][0-9]*")) return false;
+        try {
+            return conversations.canAccess(Long.parseLong(id), headers.getUser().getName());
+        } catch (RuntimeException exception) {
+            return false;
+        }
     }
 
     @Override

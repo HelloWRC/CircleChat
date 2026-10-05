@@ -14,6 +14,7 @@ import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.boot.test.context.TestConfiguration;
 import jakarta.persistence.EntityManager;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
@@ -42,8 +43,9 @@ class MessageStoreTests {
     static class StoreConfiguration {
         @Bean
         @Primary
-        BlockingMessageStore blockingMessageStore(IMessagesRepository repository, EntityManager entityManager) {
-            return new BlockingMessageStore(repository, entityManager);
+        BlockingMessageStore blockingMessageStore(IMessagesRepository repository, EntityManager entityManager,
+                                                  IConversationsRepository conversations) {
+            return new BlockingMessageStore(repository, entityManager, conversations);
         }
     }
 
@@ -51,8 +53,9 @@ class MessageStoreTests {
         volatile CountDownLatch committing;
         volatile CountDownLatch commitAllowed;
 
-        BlockingMessageStore(IMessagesRepository repository, EntityManager entityManager) {
-            super(repository, entityManager);
+        BlockingMessageStore(IMessagesRepository repository, EntityManager entityManager,
+                             IConversationsRepository conversations) {
+            super(repository, entityManager, conversations);
         }
 
         public void blockCommit(CountDownLatch committing, CountDownLatch commitAllowed) {
@@ -83,6 +86,7 @@ class MessageStoreTests {
     @Autowired private BlockingMessageStore store;
     @Autowired private IMessagesRepository messages;
     @Autowired private IUsersRepository users;
+    @Autowired private JdbcTemplate jdbc;
     private User sender;
 
     @BeforeEach
@@ -90,6 +94,8 @@ class MessageStoreTests {
         store.blockCommit(null, null);
         messages.deleteAll();
         users.deleteAll();
+        jdbc.update("delete from conversations");
+        jdbc.update("insert into conversations (id) values (0), (1)");
         sender = new User();
         sender.setUsername("alice"); sender.setDisplayName("Alice");
         sender.setEmail("alice@example.com"); sender.setPasswordHash("test"); sender.setRole(UserRole.User);

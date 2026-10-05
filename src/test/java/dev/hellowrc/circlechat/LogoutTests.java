@@ -6,6 +6,8 @@ import dev.hellowrc.circlechat.controller.AuthenticateController;
 import dev.hellowrc.circlechat.controller.UsersController;
 import dev.hellowrc.circlechat.model.dto.UserInfo;
 import dev.hellowrc.circlechat.repository.IUsersRepository;
+import dev.hellowrc.circlechat.repository.IChatroomsRepository;
+import dev.hellowrc.circlechat.service.ChatroomService;
 import dev.hellowrc.circlechat.service.UserService;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.BeforeEach;
@@ -56,6 +58,9 @@ class LogoutTests {
 
     @MockitoBean
     private IUsersRepository usersRepository;
+
+    @MockitoBean private ChatroomService chatroomService;
+    @MockitoBean private IChatroomsRepository chatroomsRepository;
 
     @BeforeEach
     void configureLogin() {

@@ -35,7 +35,7 @@ public class MessageService {
     private final long maxRetryMillis;
     private volatile boolean accepting;
     private volatile boolean terminated;
-    private MessageCursor boundary;
+    private final Map<Long, MessageCursor> boundaries = new HashMap<>();
     private Thread worker;
 
     public MessageService(MessageStore store, SimpMessagingTemplate messaging,
@@ -55,7 +55,7 @@ public class MessageService {
 
     @PostConstruct
     public void start() {
-        boundary = store.latest(MAIN_CONVERSATION_ID);
+        boundaries.put(MAIN_CONVERSATION_ID, store.latest(MAIN_CONVERSATION_ID));
         accepting = true;
         worker = new Thread(this::consume, "chat-message-writer");
         worker.setDaemon(true);
@@ -63,32 +63,33 @@ public class MessageService {
     }
 
     public static void requireConversation(long conversationId) {
-        if (conversationId != MAIN_CONVERSATION_ID) throw new IllegalArgumentException("会话不存在");
+        if (conversationId < 0) throw new IllegalArgumentException("会话不存在");
     }
 
     public ChatMessage send(long conversationId, String body, UserInfo user) {
         requireConversation(conversationId);
         if (body == null || body.isBlank()) throw new IllegalArgumentException("消息不能为空");
-        if (!capacity.tryAcquire()) throw new IllegalArgumentException("服务器消息队列已满，请稍后重试");
         synchronized (gate) {
             if (!accepting) {
-                capacity.release();
                 throw new IllegalArgumentException("服务器正在停止，请稍后重试");
             }
-            var now = LocalDateTime.now().truncatedTo(ChronoUnit.MICROS);
-            if (!now.isAfter(boundary.time())) now = boundary.time().plus(1, ChronoUnit.MICROS);
-            var message = new ChatMessage(UUID.randomUUID().toString(), conversationId, body,
-                    user.displayName(), user.username(), user.id(), user.avatarSmallUrl(), now);
-            pending.put(message.id(), message);
+            if (!capacity.tryAcquire()) throw new IllegalArgumentException("服务器消息队列已满，请稍后重试");
+            ChatMessage message = null;
             try {
+                var boundary = boundaries.computeIfAbsent(conversationId, store::latest);
+                var now = LocalDateTime.now().truncatedTo(ChronoUnit.MICROS);
+                if (!now.isAfter(boundary.time())) now = boundary.time().plus(1, ChronoUnit.MICROS);
+                message = new ChatMessage(UUID.randomUUID().toString(), conversationId, body,
+                        user.displayName(), user.username(), user.id(), user.avatarSmallUrl(), now);
+                pending.put(message.id(), message);
                 messaging.convertAndSend("/topic/conversations/" + conversationId + "/messages",
                         new ReceiveChatMessageRsp(message));
                 // The reserved slot makes enqueue infallible under ordinary operation.
                 queue.add(message);
-                boundary = MessageCursor.of(message);
+                boundaries.put(conversationId, MessageCursor.of(message));
                 return message;
             } catch (RuntimeException exception) {
-                pending.remove(message.id());
+                if (message != null) pending.remove(message.id());
                 capacity.release();
                 throw exception;
             }
@@ -109,6 +110,7 @@ public class MessageService {
             // Copy BEFORE opening the read transaction: a committed-and-removed message
             // must either be in this snapshot or visible to the subsequent DB query.
             snapshot = List.copyOf(pending.values());
+            var boundary = boundaries.computeIfAbsent(conversationId, store::latest);
             upper = until == null || until.compareTo(boundary) > 0 ? boundary : until;
         }
         var merged = new HashMap<String, ChatMessage>();

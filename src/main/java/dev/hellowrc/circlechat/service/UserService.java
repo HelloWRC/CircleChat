@@ -14,6 +14,8 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class UserService implements UserDetailsService {
+    public static final String SUPER_ADMIN_USERNAME = "root";
+
     public static String getRoleNameByRole(UserRole role) {
         if (role == UserRole.User) return "ROLE_USER";
         if (role == UserRole.Admin) return "ROLE_ADMIN";
@@ -29,15 +31,23 @@ public class UserService implements UserDetailsService {
         this.usersRepository = usersRepository;
     }
 
-    public void createUser(String username, String email, String displayName, String password) {
+    private void createUserCore(String username, String email, String displayName, String password, UserRole role) {
         var user = new User();
         user.setUsername(username);
         user.setEmail(email);
         user.setDisplayName(displayName);
         var passwordHash = passwordEncoder.encode(password);
         user.setPasswordHash(passwordHash);
-        user.setRole(UserRole.User);
+        user.setRole(role);
         usersRepository.save(user);
+    }
+
+    public void createUser(String username, String email, String displayName, String password) {
+        createUserCore(username, email, displayName, password, UserRole.User);
+    }
+
+    public void createDefaultSuperAdmin() {
+        createUserCore(SUPER_ADMIN_USERNAME, "", "超级管理员", "believe_the_rainbow", UserRole.Admin);
     }
 
     public UserInfo getUserInfoByUsername(String username) {
