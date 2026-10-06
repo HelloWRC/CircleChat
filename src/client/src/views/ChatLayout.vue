@@ -24,7 +24,7 @@ onMounted(() => {
   media = window.matchMedia('(max-width: 700px)')
   updateWidth()
   media.addEventListener('change', updateWidth)
-  if (!store.conversations.length) void store.loadMore()
+  void store.refresh()
 })
 onBeforeUnmount(() => media?.removeEventListener('change', updateWidth))
 watch(selectedId, () => {

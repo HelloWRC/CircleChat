@@ -102,6 +102,106 @@ test('会话按页获取、去重并携带 Session，失败后从同一页重试
   assert.equal(requests.length, count)
 })
 
+test('刷新期间展示 Pinia 缓存，成功后替换列表并从新分页继续加载', async () => {
+  const { pinia, store } = await context()
+  await store.loadMore()
+  respond = () => json({ statusCode: 200, content: { info: entry(42, '缓存标题') } })
+  await store.loadCurrent(42)
+  store.drafts['42'] = '保留草稿'
+  let finish, notifyStarted
+  const started = new Promise((resolve) => {
+    notifyStarted = resolve
+  })
+  respond = () =>
+    new Promise((resolve) => {
+      finish = resolve
+      notifyStarted()
+    })
+  const refreshing = store.refresh()
+  await started
+  const cachedStore = useConversationsStore(pinia)
+  assert.equal(cachedStore, store)
+  assert.deepEqual(
+    cachedStore.conversations.map((item) => item.id),
+    [42, 0],
+  )
+  assert.equal(store.total, 3)
+  assert.equal(store.isLoading, true)
+  assert.equal(store.currentConversation.title, '缓存标题')
+  finish(page(0, [entry(7), entry(42, '刷新标题')], true))
+  await refreshing
+  assert.deepEqual(
+    store.conversations.map((item) => item.id),
+    [7, 42],
+  )
+  assert.equal(store.conversations[1].title, '刷新标题')
+  assert.equal(store.drafts['42'], '保留草稿')
+  assert.equal(store.isLoading, false)
+  respond = () => page(1, [entry(900)], false)
+  await store.loadMore()
+  assert.match(requests.at(-1).url, /page=1/)
+  assert.deepEqual(
+    store.conversations.map((item) => item.id),
+    [7, 42, 900],
+  )
+})
+
+test('刷新失败保留已有会话，重试仍请求第一页且可以刷新为空列表', async () => {
+  const { store } = await context()
+  await store.loadMore()
+  respond = () => json({}, 503)
+  await store.refresh()
+  assert.deepEqual(
+    store.conversations.map((item) => item.id),
+    [42, 0],
+  )
+  assert.ok(store.error)
+  assert.equal(store.isEmpty, false)
+  respond = () => page(0, [])
+  await store.loadMore()
+  assert.match(requests.at(-1).url, /page=0/)
+  assert.deepEqual(store.conversations, [])
+  assert.equal(store.error, null)
+  assert.equal(store.isEmpty, true)
+})
+
+test('重复刷新和旧分页响应乱序时，仅最新刷新生效', async () => {
+  const { store } = await context()
+  respond = () => page(0, [entry(42)], true)
+  await store.loadMore()
+  const pending = []
+  const started = []
+  respond = () =>
+    new Promise((resolve) => {
+      pending.push(resolve)
+      started.shift()()
+    })
+  const waitForRequest = () => new Promise((resolve) => started.push(resolve))
+  const pageStarted = waitForRequest()
+  const oldPage = store.loadMore()
+  await pageStarted
+  const firstStarted = waitForRequest()
+  const firstRefresh = store.refresh()
+  await firstStarted
+  const latestStarted = waitForRequest()
+  const latestRefresh = store.refresh()
+  await latestStarted
+  pending[1](page(0, [entry(7)]))
+  await firstRefresh
+  assert.equal(store.isLoading, true)
+  assert.equal(store.conversations[0].id, 42)
+  pending[2](page(0, [entry(900)]))
+  await latestRefresh
+  pending[0](page(1, [entry(0)]))
+  await oldPage
+  assert.deepEqual(
+    store.conversations.map((item) => item.id),
+    [900],
+  )
+  assert.equal(store.isLoading, false)
+  assert.equal(store.error, null)
+})
+
 test('登出清除会话和各会话草稿，迟到的列表响应不能恢复数据', async () => {
   const { user, store } = await context()
   let finish

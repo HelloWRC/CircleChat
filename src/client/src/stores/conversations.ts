@@ -44,7 +44,11 @@ export const useConversationsStore = defineStore('conversations', () => {
   }
 
   function refresh() {
-    clearConversations()
+    generation++
+    isLoading.value = false
+    hasMore.value = true
+    error.value = null
+    nextPage = 0
     return loadMore()
   }
 
@@ -53,10 +57,14 @@ export const useConversationsStore = defineStore('conversations', () => {
   async function loadMore() {
     if (isLoading.value || !hasMore.value || !user.isAuthenticated) return
     const version = generation
+    const currentAtStart = currentConversation.value
     isLoading.value = true
     error.value = null
     try {
-      const response = await getConversations({ params: { page: nextPage, size: 20 } })
+      const response = await getConversations({
+        params: { page: nextPage, size: 20 },
+        shareRequest: false,
+      })
       if (version !== generation) return
       const page = response.content
       if (
@@ -69,12 +77,14 @@ export const useConversationsStore = defineStore('conversations', () => {
       ) {
         throw new Error('会话列表响应异常，请重试')
       }
-      const entries = new Map(conversations.value.map((entry) => [entry.id, entry]))
+      const entries = new Map(
+        nextPage === 0 ? [] : conversations.value.map((entry) => [entry.id, entry]),
+      )
       const current = currentConversation.value
       for (const entry of page.conversations) {
         entries.set(
           entry.id!,
-          current && current.id === entry.id
+          current && current !== currentAtStart && current.id === entry.id
             ? current
             : {
                 id: entry.id!,
