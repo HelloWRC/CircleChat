@@ -1,0 +1,56 @@
+services:
+  app:
+    build:
+      context: .
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${CIRCLECHAT_PORT:-8080}:8080"
+    environment:
+      SPRING_DATASOURCE_URL: "jdbc:postgresql://db:5432/${POSTGRES_DB:-circlechat}"
+      SPRING_DATASOURCE_USERNAME: "${POSTGRES_USER:-circlechat}"
+      SPRING_DATASOURCE_PASSWORD: "${POSTGRES_PASSWORD:-circlechat}"
+      SERVER_SHUTDOWN: graceful
+      SPRING_LIFECYCLE_TIMEOUT_PER_SHUTDOWN_PHASE: 30s
+      CHAT_PERSISTENCE_CAPACITY: "${CHAT_PERSISTENCE_CAPACITY:-10000}"
+      CHAT_PERSISTENCE_SHUTDOWN_MILLIS: "${CHAT_PERSISTENCE_SHUTDOWN_MILLIS:-30000}"
+      CHAT_PERSISTENCE_RETRY_MILLIS: "${CHAT_PERSISTENCE_RETRY_MILLIS:-1000}"
+      CHAT_PERSISTENCE_MAX_RETRY_MILLIS: "${CHAT_PERSISTENCE_MAX_RETRY_MILLIS:-30000}"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - curl
+        - --fail
+        - --silent
+        - --show-error
+        - --output
+        - /dev/null
+        - --max-time
+        - "5"
+        - http://127.0.0.1:8080/
+      interval: 10s
+      timeout: 6s
+      retries: 5
+      start_period: 60s
+    stop_grace_period: "${CIRCLECHAT_STOP_GRACE_PERIOD:-60s}"
+
+  db:
+    image: postgres:18-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: "${POSTGRES_DB:-circlechat}"
+      POSTGRES_USER: "${POSTGRES_USER:-circlechat}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-circlechat}"
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+volumes:
+  postgres_data:
