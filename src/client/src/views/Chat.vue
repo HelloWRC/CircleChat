@@ -273,19 +273,25 @@ function handleKeydown(event: KeyboardEvent) {
             class="message-row flex items-start gap-2 sm:gap-3"
             :class="{ 'message-row--own flex-row-reverse': entry.isOwn }"
           >
-            <n-avatar
-              round
-              :size="40"
-              :src="entry.message.senderAvatarUrl || undefined"
-              :img-props="{ alt: '' }"
-              object-fit="cover"
-              class="message-avatar mt-0.5 shrink-0 ring-1 ring-black/10 dark:ring-white/10"
+            <router-link
+              :to="{ name: 'friends.details', params: { username: entry.message.senderUsername } }"
+              :aria-label="`查看 ${entry.name} 的资料`"
+              class="mt-0.5 flex shrink-0 rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--color-primary)"
             >
-              <template v-if="!entry.message.senderAvatarUrl" #default>
-                {{ Array.from(entry.name)[0] }}
-              </template>
-              <template #fallback>{{ Array.from(entry.name)[0] }}</template>
-            </n-avatar>
+              <n-avatar
+                round
+                :size="40"
+                :src="entry.message.senderAvatarUrl || undefined"
+                :img-props="{ alt: '' }"
+                object-fit="cover"
+                class="message-avatar ring-1 ring-black/10 dark:ring-white/10"
+              >
+                <template v-if="!entry.message.senderAvatarUrl" #default>
+                  {{ Array.from(entry.name)[0] }}
+                </template>
+                <template #fallback>{{ Array.from(entry.name)[0] }}</template>
+              </n-avatar>
+            </router-link>
 
             <div
               class="flex min-w-0 max-w-[calc(100%_-_52px)] flex-col sm:max-w-[min(72%,640px)]"
