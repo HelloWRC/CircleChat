@@ -38,6 +38,55 @@ export type ExtractResponded<
       : Default
     : Default;
 
+interface changePasswordExtraConfig {
+  data: ComponentTypes.ChangePasswordReq;
+}
+/**
+ * ---
+ *
+ * [PUT] 修改当前用户的密码
+ *
+ * **path:** /v1/users/me/password
+ *
+ * ---
+ *
+ * **RequestBody**
+ * ```ts
+ * type RequestBody = {
+ *   currentPassword?: string
+ *   newPassword?: string
+ * }
+ * ```
+ *
+ * ---
+ *
+ * **Response**
+ * ```ts
+ * type Response = {
+ *   content?: null
+ *   statusCode?: number
+ *   message?: string
+ * }
+ * ```
+ *
+ */
+export function changePassword<
+  Config extends Alova2MethodConfig<ComponentTypes.HttpRequestRspVoid> & changePasswordExtraConfig
+>(config: Config): Alova2Method<ExtractResponded<Config, 'changePassword', ComponentTypes.HttpRequestRspVoid>> {
+  const { url, data, mergedConfig } = buildPayload(
+    '/v1/users/me/password',
+    usersControllerDefaultConfig,
+    changePassword.name,
+    config
+  );
+  return alovaInstance.Request<ExtractResponded<Config, 'changePassword', ComponentTypes.HttpRequestRspVoid>>({
+    ...mergedConfig,
+    url,
+    data,
+    method: 'PUT'
+  });
+}
+
 interface registerExtraConfig {
   data: ComponentTypes.RegisterUserReq;
 }
@@ -130,5 +179,65 @@ export function me<Config extends Alova2MethodConfig<ComponentTypes.HttpRequestR
     url,
     data,
     method: 'GET'
+  });
+}
+
+interface updateProfileExtraConfig {
+  data: ComponentTypes.UpdateProfileReq;
+}
+/**
+ * ---
+ *
+ * [PATCH] 修改当前用户的显示名称
+ *
+ * **path:** /v1/users/me
+ *
+ * ---
+ *
+ * **RequestBody**
+ * ```ts
+ * type RequestBody = {
+ *   displayName?: string
+ * }
+ * ```
+ *
+ * ---
+ *
+ * **Response**
+ * ```ts
+ * type Response = {
+ *   content?: {
+ *     user?: {
+ *       id?: number
+ *       username?: string
+ *       displayName?: string
+ *       email?: string
+ *       avatarUrl?: string
+ *       avatarLargeUrl?: string
+ *       avatarSmallUrl?: string
+ *       createdAt?: string
+ *       updatedAt?: string
+ *     }
+ *   }
+ *   statusCode?: number
+ *   message?: string
+ * }
+ * ```
+ *
+ */
+export function updateProfile<
+  Config extends Alova2MethodConfig<ComponentTypes.HttpRequestRspUserInfoRsp> & updateProfileExtraConfig
+>(config: Config): Alova2Method<ExtractResponded<Config, 'updateProfile', ComponentTypes.HttpRequestRspUserInfoRsp>> {
+  const { url, data, mergedConfig } = buildPayload(
+    '/v1/users/me',
+    usersControllerDefaultConfig,
+    updateProfile.name,
+    config
+  );
+  return alovaInstance.Request<ExtractResponded<Config, 'updateProfile', ComponentTypes.HttpRequestRspUserInfoRsp>>({
+    ...mergedConfig,
+    url,
+    data,
+    method: 'PATCH'
   });
 }

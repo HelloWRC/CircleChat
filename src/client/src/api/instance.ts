@@ -18,12 +18,7 @@ export function setAuthFailureHandler(handler: (status: number) => void) {
   onAuthFailure = handler
 }
 
-const authEndpoints = new Set([
-  '/v1/auth/login',
-  '/v1/auth/logout',
-  '/v1/users/register',
-  '/v1/users/me',
-])
+const authEndpoints = new Set(['/v1/auth/login', '/v1/auth/logout', '/v1/users/register'])
 
 export const api = createAlova({
   baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
@@ -39,10 +34,24 @@ export const api = createAlova({
   },
   responded: async (response, method) => {
     if (!response.ok) {
-      if ((response.status === 401 || response.status === 403) && !authEndpoints.has(method.url)) {
+      const isSessionCheck = method.url === '/v1/users/me' && method.type === 'GET'
+      if (
+        (response.status === 401 || response.status === 403) &&
+        !authEndpoints.has(method.url) &&
+        !isSessionCheck
+      ) {
         onAuthFailure?.(response.status)
       }
-      throw new HttpError(response.status, `HTTP ${response.status}: ${response.statusText}`)
+      let message = `HTTP ${response.status}: ${response.statusText}`
+      try {
+        const body: unknown = await response.json()
+        if (body && typeof body === 'object' && 'message' in body) {
+          if (typeof body.message === 'string' && body.message.trim()) message = body.message
+        }
+      } catch {
+        // Non-JSON errors still retain the HTTP status and fallback message.
+      }
+      throw new HttpError(response.status, message)
     }
 
     const body = await response.text()

@@ -97,6 +97,8 @@ class MessageApiTests {
                 .andExpect(jsonPath("$.components.schemas.ChatMessage.properties.id.type").value("string"))
                 .andExpect(jsonPath("$.components.schemas.ChatMessage.properties.conversationId.type").value("integer"))
                 .andExpect(jsonPath("$.paths['/api/v1/conversations'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/users/me'].patch").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/users/me/password'].put").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/conversations/{id}/meta'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/friends/my'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/friends/user/{username}'].get").exists())

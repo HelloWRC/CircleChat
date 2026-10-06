@@ -25,6 +25,10 @@ export interface AuthLoginReq {
 export interface AuthLoginRsp {
   user?: UserInfo;
 }
+export interface ChangePasswordReq {
+  currentPassword?: string;
+  newPassword?: string;
+}
 export interface ChatMessage {
   id?: string;
   conversationId?: number;
@@ -164,6 +168,9 @@ export type RegisterUserRsp = null;
 export interface SendFriendshipRequestReq {
   targetUsername?: string;
   note?: string;
+}
+export interface UpdateProfileReq {
+  displayName?: string;
 }
 export interface UserInfo {
   id?: number;

@@ -1,6 +1,11 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
-import { login as loginRequest, logout as logoutRequest, me } from '@/api'
+import {
+  login as loginRequest,
+  logout as logoutRequest,
+  me,
+  updateProfile as updateProfileRequest,
+} from '@/api'
 import type { AuthLoginReq, UserInfo } from '@/api'
 import { HttpError } from '@/api/instance'
 import { disconnectChatClient } from '@/api/chat'
@@ -47,6 +52,7 @@ export const useUserStore = defineStore('user', () => {
   let restoring: Promise<void> | null = null
   let loggingOut: Promise<void> | null = null
   let sessionVersion = 0
+  let profileVersion = 0
 
   function saveUser(value: UserInfo | null) {
     user.value = value
@@ -69,17 +75,18 @@ export const useUserStore = defineStore('user', () => {
     if (isLoggingOut.value) return
     if (restoring) return restoring
     const version = sessionVersion
+    const profile = profileVersion
     restoring = (async () => {
       try {
         const response = await me()
-        if (version !== sessionVersion) return
+        if (version !== sessionVersion || profile !== profileVersion) return
         if (response.statusCode !== 200 || !isUser(response.content?.user)) {
           throw new Error(response.message || '无法获取用户信息，请重新登录')
         }
         saveUser(response.content.user)
         initialized.value = true
       } catch (error) {
-        if (version !== sessionVersion) return
+        if (version !== sessionVersion || profile !== profileVersion) return
         saveUser(null)
         if (error instanceof HttpError && (error.status === 401 || error.status === 403)) {
           initialized.value = true
@@ -128,6 +135,21 @@ export const useUserStore = defineStore('user', () => {
     return loggingOut
   }
 
+  async function updateProfile(displayName: string) {
+    if (!isAuthenticated.value || isLoggingOut.value) throw new Error('请先登录')
+    const version = sessionVersion
+    const response = await updateProfileRequest({ data: { displayName } })
+    if (version !== sessionVersion || !isAuthenticated.value) {
+      throw new Error('登录状态已改变，保存请求已取消')
+    }
+    if (response.statusCode !== 200 || !isUser(response.content?.user)) {
+      throw new Error(response.message || '无法保存显示名称，请稍后重试')
+    }
+    profileVersion += 1
+    saveUser(response.content.user)
+    return response.content.user
+  }
+
   return {
     user,
     isAuthenticated,
@@ -140,5 +162,6 @@ export const useUserStore = defineStore('user', () => {
     restoreSession,
     refreshUser,
     clearSession,
+    updateProfile,
   }
 })

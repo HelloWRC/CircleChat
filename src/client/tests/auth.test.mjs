@@ -149,6 +149,27 @@ after(async () => {
   else delete globalThis.localStorage
 })
 
+test('未登录访问设置页跳转登录并保留设置页回跳地址', async () => {
+  const { router, user } = context()
+  await router.push('/settings')
+  assert.equal(router.currentRoute.value.name, 'auth.login')
+  assert.equal(router.currentRoute.value.query.redirect, '/settings')
+  assert.equal(user.isAuthenticated, false)
+})
+
+test('保存名称遇到过期 Session 时清除缓存并跳转登录', { timeout: 3000 }, async () => {
+  respond = () => userResponse()
+  const { router, user } = context()
+  await router.push('/settings')
+  respond = () => json({}, 401)
+  const navigation = nextLoginNavigation(router)
+  await assert.rejects(user.updateProfile('Updated'))
+  await navigation
+  assert.equal(user.isAuthenticated, false)
+  assert.equal(storage.has(key), false)
+  assert.equal(router.currentRoute.value.query.redirect, '/settings')
+})
+
 test('未登录时守卫保留完整目标地址并跳转登录页', async () => {
   const { router, user } = context()
   await router.push('/room/42?tab=chat#latest')
