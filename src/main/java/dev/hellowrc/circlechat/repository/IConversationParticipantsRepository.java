@@ -11,6 +11,7 @@ import java.util.Optional;
 public interface IConversationParticipantsRepository extends JpaRepository<ConversationParticipant, Long> {
     boolean existsByConversationIdAndUserUsername(Long conversationId, String username);
     Optional<ConversationParticipant> findFirstByConversationIdAndUserId(Long conversationId, Long userId);
+    void deleteByConversationIdAndUserId(Long conversationId, Long userId);
 
     @Query("""
             select p from ConversationParticipant p join fetch p.conversation

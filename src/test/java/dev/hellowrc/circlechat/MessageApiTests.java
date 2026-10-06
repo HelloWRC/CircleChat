@@ -98,6 +98,14 @@ class MessageApiTests {
                 .andExpect(jsonPath("$.components.schemas.ChatMessage.properties.conversationId.type").value("integer"))
                 .andExpect(jsonPath("$.paths['/api/v1/conversations'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/conversations/{id}/meta'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/friends/my'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/friends/user/{username}'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/friends/requests'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/friends/requests'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/friends/requests/{id}/accept'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/friends/requests/{id}/reject'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/friends/requests/{id}/ignore'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/friends/user/{username}'].delete").exists())
                 .andExpect(jsonPath("$.components.schemas.GetConversationsRsp.properties.totalElements.type").value("integer"))
                 .andReturn();
         Files.createDirectories(Path.of("build"));

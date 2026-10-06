@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { Component } from 'vue'
 import { storeToRefs } from 'pinia'
-import { ChatbubbleOutline, LogOutOutline, SettingsOutline } from '@vicons/ionicons5'
+import { ChatbubbleOutline, LogOutOutline, SettingsOutline, PersonOutline } from '@vicons/ionicons5'
 import { NIcon, type DropdownOption, type MenuOption } from 'naive-ui'
 import logo from '@/assets/logo.svg'
 import { useUserStore } from '@/stores/user'
@@ -16,9 +16,6 @@ const message = useMessage()
 const isUserMenuOpen = ref(false)
 
 const avatarInitial = computed(() => Array.from(displayName.value)[0]?.toUpperCase() || '用')
-const activeMenuKey = computed(() =>
-  route.matched.some((record) => record.name === 'chat') ? 'chat' : null,
-)
 
 function renderIcon(icon: Component) {
   return () => h(NIcon, null, { default: () => h(icon) })
@@ -30,7 +27,18 @@ const menuOptions: MenuOption[] = [
     key: 'chat',
     icon: renderIcon(ChatbubbleOutline),
   },
+  {
+    label: '好友',
+    key: 'friends',
+    icon: renderIcon(PersonOutline),
+  },
 ]
+
+const activeMenuKey = computed(
+  () =>
+    menuOptions.find((option) => route.matched.some((record) => record.name === option.key))?.key ??
+    null,
+)
 
 const userMenuOptions: DropdownOption[] = [
   {

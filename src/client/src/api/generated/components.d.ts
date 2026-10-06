@@ -41,6 +41,33 @@ export interface ConversationInfo {
   hasNewMessage?: boolean;
   isMuted?: boolean;
   type?: 'Unknown' | 'Friend' | 'Chatroom';
+  avatarUrl?: string;
+}
+export interface FriendInfo {
+  userId?: number;
+  username?: string;
+  displayName?: string;
+  avatarUrl?: string;
+  isFriend?: boolean;
+}
+export interface FriendshipRequestInfo {
+  id?: number;
+  senderUsername?: string;
+  senderDisplayName?: string;
+  senderAvatarUrl?: string;
+  targetUsername?: string;
+  targetDisplayName?: string;
+  targetAvatarUrl?: string;
+  note?: string;
+  state?: 'Open' | 'Accepted' | 'Rejected' | 'Ignored';
+  createdAt?: string;
+  updatedAt?: string;
+}
+export interface FriendsMyRsp {
+  friends?: FriendInfo[];
+}
+export interface GetConversationIdOfFriendRsp {
+  id?: number;
 }
 export interface GetConversationMetaRsp {
   info?: ConversationInfo;
@@ -55,6 +82,26 @@ export interface GetConversationsRsp {
 }
 export interface HttpRequestRspAuthLoginRsp {
   content?: AuthLoginRsp;
+  statusCode?: number;
+  message?: string;
+}
+export interface HttpRequestRspFriendInfo {
+  content?: FriendInfo;
+  statusCode?: number;
+  message?: string;
+}
+export interface HttpRequestRspFriendshipRequestInfo {
+  content?: FriendshipRequestInfo;
+  statusCode?: number;
+  message?: string;
+}
+export interface HttpRequestRspFriendsMyRsp {
+  content?: FriendsMyRsp;
+  statusCode?: number;
+  message?: string;
+}
+export interface HttpRequestRspGetConversationIdOfFriendRsp {
+  content?: GetConversationIdOfFriendRsp;
   statusCode?: number;
   message?: string;
 }
@@ -73,6 +120,11 @@ export interface HttpRequestRspMessageHistoryRsp {
   statusCode?: number;
   message?: string;
 }
+export interface HttpRequestRspPageDtoFriendshipRequestInfo {
+  content?: PageDtoFriendshipRequestInfo;
+  statusCode?: number;
+  message?: string;
+}
 export interface HttpRequestRspRegisterUserRsp {
   content?: null;
   statusCode?: number;
@@ -83,11 +135,24 @@ export interface HttpRequestRspUserInfoRsp {
   statusCode?: number;
   message?: string;
 }
+export interface HttpRequestRspVoid {
+  content?: null;
+  statusCode?: number;
+  message?: string;
+}
 export interface MessageHistoryRsp {
   messages?: ChatMessage[];
   nextCursor?: string;
   hasMore?: boolean;
   snapshotCursor?: string;
+}
+export interface PageDtoFriendshipRequestInfo {
+  content?: FriendshipRequestInfo[];
+  page?: number;
+  size?: number;
+  totalElements?: number;
+  totalPages?: number;
+  hasMore?: boolean;
 }
 export interface RegisterUserReq {
   username?: string;
@@ -96,6 +161,10 @@ export interface RegisterUserReq {
   displayName?: string;
 }
 export type RegisterUserRsp = null;
+export interface SendFriendshipRequestReq {
+  targetUsername?: string;
+  note?: string;
+}
 export interface UserInfo {
   id?: number;
   username?: string;

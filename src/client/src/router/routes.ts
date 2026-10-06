@@ -11,12 +11,35 @@ export const routes: RouteRecordRaw[] = [
         path: 'chat',
         name: 'chat',
         component: () => import('@/views/ChatLayout.vue'),
-        redirect: (to) => ({ name: 'chat.conversation', params: { id: '0' }, query: to.query, hash: to.hash }),
+        redirect: (to) => ({
+          name: 'chat.conversation',
+          params: { id: '0' },
+          query: to.query,
+          hash: to.hash,
+        }),
         children: [
           {
             path: ':id(0|[1-9]\\d*)',
             name: 'chat.conversation',
             component: () => import('@/views/Chat.vue'),
+            props: true,
+          },
+        ],
+      },
+      {
+        path: 'friends',
+        name: 'friends',
+        component: () => import('@/views/friends/base.vue'),
+        children: [
+          {
+            path: 'new',
+            name: 'friends.new',
+            component: () => import('@/views/friends/New.vue'),
+          },
+          {
+            path: 'details/:username',
+            name: 'friends.details',
+            component: () => import('@/views/friends/Details.vue'),
             props: true,
           },
         ],

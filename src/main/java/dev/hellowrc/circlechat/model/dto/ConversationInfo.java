@@ -5,6 +5,7 @@ public record ConversationInfo(
     String title,
     boolean hasNewMessage,
     boolean isMuted,
-    ConversationType type
+    ConversationType type,
+    String avatarUrl
 ) {
 }

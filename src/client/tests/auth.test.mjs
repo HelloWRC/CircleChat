@@ -345,7 +345,7 @@ test('未登录访问首页时登录回跳地址为聊天页', async () => {
   assert.equal(router.currentRoute.value.fullPath, '/chat/0')
 })
 
-test('侧栏菜单选择跳转真实聊天路由，选中状态跟随当前页面', { timeout: 3000 }, async () => {
+test('侧栏菜单切换聊天和好友时，选中状态跟随当前页面', { timeout: 3000 }, async () => {
   respond = () => userResponse()
   const session = context()
   await session.router.push('/chat')
@@ -369,6 +369,28 @@ test('侧栏菜单选择跳转真实聊天路由，选中状态跟随当前页�
   assert.equal(session.router.currentRoute.value.fullPath, '/chat/0')
   html = await renderSidebar(session)
   assert.match(html, /data-active-menu="chat"/)
+  const friendsNavigation = new Promise((resolve) => {
+    const remove = session.router.afterEach((to) => {
+      if (to.name === 'friends') {
+        remove()
+        resolve()
+      }
+    })
+  })
+  session.selectMenu('friends')
+  await friendsNavigation
+  assert.equal(session.router.currentRoute.value.fullPath, '/friends')
+  html = await renderSidebar(session)
+  assert.match(html, /data-active-menu="friends"/)
+
+  session.router.addRoute('friends', {
+    path: ':username',
+    name: 'friends.user',
+    component: { render: () => null },
+  })
+  await session.router.push('/friends/bob')
+  html = await renderSidebar(session)
+  assert.match(html, /data-active-menu="friends"/)
 })
 
 test('未设置头像时侧栏显示昵称首字', async () => {

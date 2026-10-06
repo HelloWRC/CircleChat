@@ -46,6 +46,7 @@ export function buildPayload(url: string, defaultConfig: Record<string, any>, ap
 
 export type ServicesMap = {
   usersController: typeof import('./services/usersController');
+  friendsController: typeof import('./services/friendsController');
   authenticateController: typeof import('./services/authenticateController');
   conversationsController: typeof import('./services/conversationsController');
   messagesController: typeof import('./services/messagesController');

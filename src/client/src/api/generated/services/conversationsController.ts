@@ -74,6 +74,7 @@ interface getConversationMetaExtraConfig {
  *       hasNewMessage?: boolean
  *       isMuted?: boolean
  *       type?: "Unknown" | "Friend" | "Chatroom"
+ *       avatarUrl?: string
  *     }
  *   }
  *   statusCode?: number
@@ -141,6 +142,7 @@ interface getConversationsExtraConfig {
  *       hasNewMessage?: boolean
  *       isMuted?: boolean
  *       type?: "Unknown" | "Friend" | "Chatroom"
+ *       avatarUrl?: string
  *     }>
  *     page?: number
  *     size?: number
@@ -212,6 +214,7 @@ interface getConversations1ExtraConfig {
  *       hasNewMessage?: boolean
  *       isMuted?: boolean
  *       type?: "Unknown" | "Friend" | "Chatroom"
+ *       avatarUrl?: string
  *     }>
  *     page?: number
  *     size?: number

@@ -24,11 +24,10 @@ export const useConversationsStore = defineStore('conversations', () => {
   let generation = 0
   let currentRequest = 0
 
-  function reset() {
+  function clearConversations() {
     generation++
     currentRequest++
     conversations.value = []
-    drafts.value = {}
     isLoading.value = false
     hasMore.value = true
     error.value = null
@@ -37,6 +36,16 @@ export const useConversationsStore = defineStore('conversations', () => {
     currentConversation.value = null
     isLoadingCurrent.value = false
     currentError.value = null
+  }
+
+  function reset() {
+    clearConversations()
+    drafts.value = {}
+  }
+
+  function refresh() {
+    clearConversations()
+    return loadMore()
   }
 
   watch(() => user.user?.id, reset, { flush: 'sync' })
@@ -71,6 +80,7 @@ export const useConversationsStore = defineStore('conversations', () => {
                 id: entry.id!,
                 title: entry.title?.trim() || `会话 ${entry.id}`,
                 type: entry.type ?? 'Unknown',
+                avatarUrl: entry.avatarUrl?.trim() || '',
                 isMuted: entry.isMuted ?? false,
                 hasNewMessage: entry.hasNewMessage ?? false,
               },
@@ -108,6 +118,7 @@ export const useConversationsStore = defineStore('conversations', () => {
         id,
         title: info.title?.trim() || `会话 ${id}`,
         type: info.type ?? 'Unknown',
+        avatarUrl: info.avatarUrl?.trim() || '',
         isMuted: info.isMuted ?? false,
         hasNewMessage: info.hasNewMessage ?? false,
       }
@@ -144,6 +155,7 @@ export const useConversationsStore = defineStore('conversations', () => {
     total,
     isEmpty,
     loadMore,
+    refresh,
     title,
     currentConversation,
     isLoadingCurrent,

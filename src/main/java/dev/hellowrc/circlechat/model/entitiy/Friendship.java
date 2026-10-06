@@ -4,7 +4,10 @@ import dev.hellowrc.circlechat.abstraction.model.entity.EntityBase;
 import jakarta.persistence.*;
 
 @Entity
-@Table(name = "friendships")
+@Table(name = "friendships", indexes = {
+        @Index( name = "index_user_a_id", columnList = "user_a_id"),
+        @Index( name = "index_user_b_id", columnList = "user_b_id")
+})
 public class Friendship extends EntityBase {
     @ManyToOne
     @JoinColumn(name = "user_a_id", nullable = false)

@@ -7,6 +7,7 @@ import dev.hellowrc.circlechat.model.entitiy.Conversation;
 import dev.hellowrc.circlechat.model.entitiy.ConversationParticipant;
 import dev.hellowrc.circlechat.model.entitiy.User;
 import dev.hellowrc.circlechat.repository.*;
+import dev.hellowrc.circlechat.utils.GravatarUtils;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
@@ -78,18 +79,20 @@ public class ConversationService {
                 .stream().findFirst().orElseThrow(() -> new AccessDeniedException("无权访问此会话"));
         var title = "会话 " + id;
         var type = ConversationType.Unknown;
+        var avatarUrl = "";
         for (var friendship : friendshipsRepository.findForUserAndConversations(username, ids)) {
             var peer = friendship.getUserA().getUsername().equals(username)
                     ? friendship.getUserB() : friendship.getUserA();
             title = peer.getDisplayName();
             type = ConversationType.Friend;
+            avatarUrl = GravatarUtils.getAvatarUrl(peer.getEmail());
         }
         for (var chatroom : chatroomsRepository.findByConversationIdIn(ids)) {
             if (chatroom.getName() != null && !chatroom.getName().isBlank()) title = chatroom.getName();
             type = ConversationType.Chatroom;
         }
         var hasNewMessage = !messagesRepository.findUnreadConversationIds(username, ids).isEmpty();
-        return new ConversationInfo(id, title, hasNewMessage, participant.isMuted(), type);
+        return new ConversationInfo(id, title, hasNewMessage, participant.isMuted(), type, avatarUrl);
     }
 
     @Transactional(readOnly = true)
