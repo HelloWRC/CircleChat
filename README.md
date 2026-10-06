@@ -1,23 +1,60 @@
 # CiRCLE Chat
 
-## Docker Compose 启动
+> [!caution]
+> 这个项目是我的一个 Spring 学习项目，远没有达到作为生产环境的聊天室应用的标准，请不要在生产环境使用此项目。
 
-安装并启动 Docker Engine（或 Docker Desktop，使用 Linux 容器）和 Docker Compose。在项目根目录运行：
+![img.png](images/img.png)
 
-```sh
+CiRCLE Chat 是一个基于 Spring Boot + Vue.js 的轻量级聊天室，支持使用 Markdown 语法进行全员群聊和成员单聊，并可以持久在云端保持聊天记录。
+
+## 功能
+
+- 用户注册与登录
+- 多人聊天
+- 与他人添加好友并进行单聊
+- 实时接收当前会话的聊天信息
+- 聊天记录持久化保存
+- 在聊天中使用 Markdown
+- 自动根据电子邮件从 Gravatar 获取头像
+- ……
+
+## 已知缺陷
+
+由于开发时间紧张，这个项目还有很多不完善的地方。
+
+- **不支持验证用户的电子邮件：** 用户可以使用任意电子邮件注册，不会验证其是否真正拥有此邮件的所有权
+- **不支持用户自行创建群聊：** 虽然应用已经有群聊模式的会话支持，但尚未完善用户自行创建和管理群聊的功能
+- **不具备管理功能：** 尽管用户模型内部已有管理员/用户的角色区分，但管理员目前没有实际的系统管理功能。同理，群聊管理员也没有实际管理群聊的能力。
+- **没有完善的数据库迁移机制：** 目前应用依赖 JPA 的自动迁移机制在更新实体模型后进行迁移，尽管可以满足开发需求，但达不到生产级的数据库迁移实现标准。
+- **不具备完善的消息操作功能：** 目前还不支持用户撤回、引用、转发等聊天工具基础的消息操作
+- 不支持在会话外显示已读/未读状态
+- 不支持实时接收其它会话和新好友申请的消息
+- ……
+
+## 快速开始
+
+首先确保你的环境满足以下条件：
+
+- 已安装 [Docker Engine](https://docs.docker.com/engine/)
+- 网络环境可正常访问 [docker.io](https://docker.io)（或已正确配置间接访问其的镜像）
+
+拉取本仓库，然后进入仓库目录启动 Docker Compose 集群，即可启动应用。数据库等要素已自动完成配置。
+
+```bash
+git clone https://github.com/HelloWRC/CircleChat
+cd CircleChat
 docker compose up -d --build
 ```
 
-构建在容器内完成，无需宿主机安装 Java、Node.js、pnpm，也无需先创建 `.env`。镜像构建使用 Node.js 24、pnpm 11.7.0 和 Java 25，将前端生产产物打入后端 JAR；首次构建需要联网下载镜像和依赖。
+应用默认会监听 `http://localhost:8080`，你可以使用 nginx 或其它你喜欢的反代工具将其反代到公网上。
 
-启动后访问 <http://127.0.0.1:8080>。Compose 同时启动应用和 PostgreSQL 18，等待数据库健康后启动应用。应用启动需要一些时间，可以检查状态和日志：
+应用启动后会创建一个默认的超级管理员账户。**请在部署后立即登录并修改密码。**
 
-```sh
-docker compose ps
-docker compose logs -f app db
-```
+| 用户名 | 密码 |
+| --- | --- |
+| `root` | `believe_the_rainbow` |
 
-等待两个服务显示 `healthy` 后即可使用，也可运行 `docker compose up -d --build --wait` 等待健康检查通过。新数据库由应用建表并初始化主聊天室和管理员；管理员用户名为 `root`，初始密码为 `believe_the_rainbow`，登录后可在用户设置中修改密码。
+恭喜！你已成功在你的服务器上部署了 CiRCLE Chat！
 
 ## 配置
 
@@ -35,36 +72,71 @@ docker compose logs -f app db
 | `CHAT_PERSISTENCE_RETRY_MILLIS` | `1000` | 写库首次重试间隔，毫秒 |
 | `CHAT_PERSISTENCE_MAX_RETRY_MILLIS` | `30000` | 写库最大重试间隔，毫秒 |
 
-Compose 显式将应用连接到 `db:5432`。根目录 `.env` 中的 `SPRING_DATASOURCE_URL`、`SPRING_DATASOURCE_USERNAME`、`SPRING_DATASOURCE_PASSWORD` 仅用于直接运行 JAR 或 Gradle，不影响 Compose 数据库连接。实际 `.env` 文件不会进入构建上下文或镜像，前端使用同域 `/api` 和 `/ws`。
+## 开发
 
-数据库不开放宿主机端口，数据保存在命名卷 `postgres_data` 中。数据库首次初始化后，修改 `POSTGRES_*` 不会自动重命名现有数据库或修改数据库账号、密码；已有数据需要在 PostgreSQL 中完成相应修改并同步配置。
+要开发本应用，你需要安装以下依赖：
 
-应用使用优雅停机并等待消息队列排空。`CIRCLECHAT_STOP_GRACE_PERIOD` 应至少覆盖 HTTP 停机等待时间（30 秒）与 `CHAT_PERSISTENCE_SHUTDOWN_MILLIS`，增加消息排空时间时需同步增加停止宽限期。异常退出仍可能丢失尚未提交的消息；消息队列只支持单实例，不要扩容应用副本。
+- JDK 25
+- Node.js 24
+- pnpm 11.7.0
+- PostgreSQL 18
+- Git
 
-## 更新和停止
+1. 克隆并进入代码库。
 
-更新源码后，在项目根目录重新构建并启动，前后端会一起更新，数据库卷保持不变：
+    ``` bash
+    git clone https://github.com/HelloWRC/CircleChat
+    cd CircleChat
+    ```
 
-```sh
-docker compose up -d --build
-```
+2. 配置数据库。
+    
+    在你的 PostgreSQL 中新建一个名为 `circle` 的数据库，并为你接下来要使用的用户分配读写这个数据库的权限。将 `.env.example` 复制到 `.env`，然后将其中的数据库配置替换为你的真实配置。例如：
 
-停止并移除容器及网络，保留数据库：
+    ```bash
+    SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/circle
+    SPRING_DATASOURCE_USERNAME=你的数据库用户名
+    SPRING_DATASOURCE_PASSWORD=你的数据库密码
+    ```
 
-```sh
-docker compose down
-```
+3. 安装前端依赖
+    
+    进入前端源代码目录 `/src/client`，然后使用 `pnpm` 安装依赖。
 
-**以下命令会同时删除数据库卷及全部数据，仅在确认需要清空时使用：**
+    ```bash
+    cd src/client
+    pnpm install --frozen-lockfile
+    ```
+   
+4. 启动应用
+    
+    打开两个终端，分别用于启动后端和前端。
 
-```sh
-docker compose down -v
-```
+    其中一个终端在项目根目录执行：
 
-## 线上代理与已有数据库
+    ```bash
+    ./gradlew bootRun
+    ```
+   
+    另一个终端在项目根目录执行：
 
-应用默认只监听宿主机 `127.0.0.1:8080`，沿用浏览器 HTTPS → CDN → 宿主机 Nginx HTTP → 应用的部署方式。使用 `deploy/nginx-proxy.conf` 替换站点已有代理规则，执行 `nginx -t` 后重载。若更改 `CIRCLECHAT_PORT`，同步修改 Nginx 的上游端口。
+    ```bash
+    cd src/client
+    pnpm dev --port 5173 --strictPort
+    ```
 
-保留 WebSocket 的 `Upgrade` / `Connection` 头和 300 秒代理超时；HTTPS 在 CDN 终止时，转发协议和端口保持 `https` / `443`。应用继续使用 `server.forward-headers-strategy: framework`。源码更新后需刷新 CDN 的 HTML 缓存。
+    与生产环境相同，应用也会创建一个默认的超级用户。[详细请见上文](#快速开始)。
 
-Compose 默认创建独立的新数据库，不自动接入或迁移宿主机已有数据库，也不自动执行升级 SQL。迁移旧数据时，停止旧应用并备份数据库，在 PostgreSQL 依次执行 `deploy/sql/001-message-persistence.sql` 和 `deploy/sql/002-conversations.sql`；导入内置数据库后再启动新应用。不能只依赖 Hibernate `ddl-auto: update` 回填旧数据。全新数据库无需执行升级脚本。
+5. 发布
+
+    当需要在本地发布 jar 包时，运行以下命令：
+
+    ```bash
+    ./gradlew bootJar
+    ```
+   
+    此命令会同时构建后端和前端文件，并将应用运行所需的前端页面一并打包到 Jar 包中，无需使用 pnpm 手动构建。
+
+## 许可
+
+本项目基于 [AGPL-3.0](./LICENSE.txt) 获得许可。
